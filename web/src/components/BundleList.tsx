@@ -1,5 +1,5 @@
 // web/src/components/BundleList.tsx
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,8 +45,6 @@ const fetchAllFiles = async (): Promise<string[]> => {
 
 export function BundleList() {
   const queryClient = useQueryClient()
-  const [bundles, setBundles] = useState<Bundle[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set())
   const [bundleCategories, setBundleCategories] = useState<Record<string, BundleCategories>>({})
   const [editingBundles, setEditingBundles] = useState<Set<string>>(new Set())
@@ -55,25 +53,12 @@ export function BundleList() {
   const [successButtons, setSuccessButtons] = useState<Set<string>>(new Set())
   const [errorButtons, setErrorButtons] = useState<Set<string>>(new Set())
 
-  // Manual fetch function
-  const refetch = async () => {
-    console.log('Manual refetch called')
-    try {
-      const freshBundles = await fetchBundles()
-      console.log('Fresh bundles received:', freshBundles)
-      setBundles(freshBundles)
-      return { data: freshBundles }
-    } catch (error) {
-      console.error('Failed to fetch bundles:', error)
-      return { data: [] }
-    }
-  }
-
-  // Initial load and periodic refresh
-  useState(() => {
-    refetch().then(() => setIsLoading(false))
-    const interval = setInterval(refetch, 5000)
-    return () => clearInterval(interval)
+  // Use React Query for proper state management
+  const { data: bundles = [], isLoading, refetch } = useQuery({
+    queryKey: ['bundles'],
+    queryFn: fetchBundles,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true
   })
 
   const toggleExpanded = async (bundleName: string) => {
@@ -194,12 +179,25 @@ export function BundleList() {
       const result = await response.json()
       console.log('Remove API Response:', result)
 
-      // Invalidate all related queries to force refresh
+      // Optimistically update the UI immediately
+      queryClient.setQueryData(['bundles'], (oldBundles: Bundle[] | undefined) => {
+        if (!oldBundles) return oldBundles
+        
+        return oldBundles.map(bundle => {
+          if (bundle.name === bundleName) {
+            return {
+              ...bundle,
+              files: bundle.files.filter(file => file !== fileName)
+            }
+          }
+          return bundle
+        })
+      })
+      
+      // Then invalidate to get fresh data from server
       queryClient.invalidateQueries({ queryKey: ['bundles'] })
       queryClient.invalidateQueries({ queryKey: ['hidden-files'] })
       
-      // Force immediate refetch and UI update
-      await refetch()
       setButtonState(`remove-${bundleName}-${fileName}`, 'success')
       toast.success(`Hidden ${fileName} from ${bundleName} bundle`)
       

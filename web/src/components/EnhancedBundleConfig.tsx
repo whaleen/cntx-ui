@@ -59,6 +59,7 @@ export function EnhancedBundleConfig() {
   const [newBundleName, setNewBundleName] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [generatedPatterns, setGeneratedPatterns] = useState<string[]>([])
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
   
   // Pattern testing
   const [testingPattern, setTestingPattern] = useState('')
@@ -177,14 +178,30 @@ export function EnhancedBundleConfig() {
     }
   }
 
-  const handleFileSelection = (filePath: string) => {
+  const handleFileSelection = (filePath: string, index: number, event?: React.MouseEvent) => {
     const newSelected = new Set(selectedFiles)
-    if (newSelected.has(filePath)) {
-      newSelected.delete(filePath)
+    
+    // Handle shift+click for range selection
+    if (event?.shiftKey && lastSelectedIndex >= 0 && projectFiles) {
+      const startIndex = Math.min(lastSelectedIndex, index)
+      const endIndex = Math.max(lastSelectedIndex, index)
+      
+      for (let i = startIndex; i <= endIndex; i++) {
+        if (projectFiles[i]) {
+          newSelected.add(projectFiles[i].path)
+        }
+      }
     } else {
-      newSelected.add(filePath)
+      // Normal click - toggle selection
+      if (newSelected.has(filePath)) {
+        newSelected.delete(filePath)
+      } else {
+        newSelected.add(filePath)
+      }
     }
+    
     setSelectedFiles(newSelected)
+    setLastSelectedIndex(index)
     
     // Auto-generate patterns when files are selected
     if (newSelected.size > 0) {
@@ -252,12 +269,16 @@ export function EnhancedBundleConfig() {
                       <Badge variant="outline">{selectedFiles.size} selected</Badge>
                     </div>
                     
+                    <div className="text-xs text-muted-foreground mb-2">
+                      Click to select files. Hold Shift and click to select ranges.
+                    </div>
+                    
                     <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-1">
-                      {projectFiles?.map(file => (
+                      {projectFiles?.map((file, index) => (
                         <div
                           key={file.path}
-                          className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                          onClick={() => handleFileSelection(file.path)}
+                          className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer select-none"
+                          onClick={(e) => handleFileSelection(file.path, index, e)}
                         >
                           {selectedFiles.has(file.path) ? (
                             <CheckCircle2 className="w-4 h-4 text-blue-600" />
