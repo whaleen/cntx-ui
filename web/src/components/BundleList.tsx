@@ -194,6 +194,24 @@ export function BundleList() {
         })
       })
       
+      // CRITICAL: Also update the bundle categories immediately
+      setBundleCategories(prev => {
+        if (!prev[bundleName]) return prev
+        
+        const updated = { ...prev }
+        const categories = updated[bundleName]
+        
+        // Remove file from all file type categories
+        Object.keys(categories.filesByType).forEach(type => {
+          categories.filesByType[type] = categories.filesByType[type].filter(file => file !== fileName)
+        })
+        
+        // Remove from entry points if it exists there
+        categories.entryPoints = categories.entryPoints.filter(file => file !== fileName)
+        
+        return updated
+      })
+      
       // Then invalidate to get fresh data from server
       queryClient.invalidateQueries({ queryKey: ['bundles'] })
       queryClient.invalidateQueries({ queryKey: ['hidden-files'] })
