@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle, Circle, Copy, Monitor, FolderOpen, Settings, ArrowRight, ExternalLink, AlertTriangle, Play, Sparkles, Eye, FileText, Zap, Download } from 'lucide-react'
+import { CheckCircle, Circle, Copy, Monitor, FolderOpen, Settings, ArrowRight, ExternalLink, AlertTriangle, Play, Sparkles, Eye, Zap, Download } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,35 +19,35 @@ export default function SetupScreen() {
     {
       id: 'welcome',
       title: 'Welcome to cntx-ui',
-      description: 'Learn what you can do with the web interface',
+      description: 'Organize your code into focused bundles for AI assistance',
+      completed: false,
+      required: true
+    },
+    {
+      id: 'bundles',
+      title: 'Create Your First Bundles',
+      description: 'Set up focused file collections and learn the basics',
       completed: false,
       required: true
     },
     {
       id: 'ai-analysis',
-      title: 'AI Bundle Analysis',
+      title: 'AI Bundle Analysis (Optional)',
       description: 'Let AI analyze your code and suggest optimal bundles',
       completed: false,
       required: false
     },
     {
-      id: 'bundles',
-      title: 'Create & Manage Bundles',
-      description: 'Set up focused file collections for AI development',
-      completed: false,
-      required: true
-    },
-    {
-      id: 'optimization',
-      title: 'Fine-tune & Optimize',
-      description: 'Configure file visibility and AI assistant context',
+      id: 'mcp-integration',
+      title: 'MCP Integration (Enhanced)',
+      description: 'Set up seamless AI integration with Claude Desktop',
       completed: false,
       required: false
     },
     {
       id: 'workflows',
-      title: 'Explore Workflows',
-      description: 'Learn common patterns and best practices',
+      title: 'Choose Your Workflow',
+      description: 'Manual copy/paste or seamless MCP integration',
       completed: false,
       required: false
     }
@@ -201,85 +201,87 @@ Please analyze the following master bundle and suggest appropriate bundles:
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5" />
-                    Welcome! You're Already Running
+                    Welcome to cntx-ui
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <Alert className="border-green-200 bg-green-50">
                     <CheckCircle className="w-4 h-4" />
                     <AlertDescription>
-                      <strong>Great news!</strong> cntx-ui is installed and the web interface is running.
-                      No command line setup needed - you can do everything from this interface.
+                      <strong>You're all set!</strong> cntx-ui is running and ready to organize your code for AI assistance.
+                      Start with basic bundle management, then optionally enhance with seamless AI integration.
                     </AlertDescription>
                   </Alert>
+
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">What is cntx-ui?</h4>
+                    <p className="text-sm text-blue-800 mb-3">
+                      cntx-ui organizes your codebase into focused bundles for AI development. 
+                      Create meaningful file collections, copy them to AI tools, or use advanced MCP integration for seamless workflows.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
+                      <div>• Bundle files by purpose or feature</div>
+                      <div>• Hide irrelevant files from AI context</div>
+                      <div>• Copy bundles to any AI tool</div>
+                      <div>• Optional seamless AI integration</div>
+                    </div>
+                  </div>
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <Card className="border-blue-200">
                       <CardContent className="pt-6">
                         <Monitor className="w-8 h-8 text-blue-600 mb-3" />
-                        <h3 className="font-medium mb-2">Web Interface</h3>
+                        <h3 className="font-medium mb-2">Core Experience</h3>
                         <p className="text-sm text-gray-600">
-                          Full-featured interface for managing bundles, files, and AI context. Perfect for interactive use.
+                          Organize bundles in the web interface, copy XML to Claude, ChatGPT, or any AI tool.
                         </p>
+                        <Badge variant="outline" className="mt-2">Works everywhere</Badge>
                       </CardContent>
                     </Card>
 
-                    <Card className="border-gray-200">
+                    <Card className="border-purple-200">
                       <CardContent className="pt-6">
-                        <FileText className="w-8 h-8 text-gray-600 mb-3" />
-                        <h3 className="font-medium mb-2">Command Line</h3>
+                        <Zap className="w-8 h-8 text-purple-600 mb-3" />
+                        <h3 className="font-medium mb-2">Enhanced Experience</h3>
                         <p className="text-sm text-gray-600">
-                          Available for automation, scripts, and CI/CD workflows. Optional for advanced users.
+                          Optional MCP server integration for seamless access in Claude Desktop and other MCP clients.
                         </p>
+                        <Badge variant="outline" className="mt-2">Progressive enhancement</Badge>
                       </CardContent>
                     </Card>
-                  </div>
-
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-blue-900 mb-2">What is cntx-ui?</h4>
-                    <p className="text-sm text-blue-800 mb-3">
-                      cntx-ui helps you organize your codebase for AI development by creating focused file bundles.
-                      Think of it as intelligent project packaging for AI assistants like Claude, ChatGPT, or Cursor.
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
-                      <div>• Bundle files by purpose or feature</div>
-                      <div>• Hide irrelevant files from AI context</div>
-                      <div>• Generate XML packages for AI tools</div>
-                      <div>• Manage project context efficiently</div>
-                    </div>
                   </div>
 
                   <div className="flex justify-between">
                     <Button variant="outline" disabled>Previous</Button>
                     <Button onClick={() => { markStepComplete('welcome'); setCurrentStep(1); }}>
-                      Let's Start <ArrowRight className="w-4 h-4 ml-1" />
+                      Create Your First Bundles <ArrowRight className="w-4 h-4 ml-1" />
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Step 2: AI Bundle Analysis */}
+            {/* Step 2: Create Bundles */}
             {currentStep === 1 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5" />
-                    Let AI Analyze Your Code & Suggest Bundles
+                    <FolderOpen className="w-5 h-5" />
+                    Create Your First Bundles
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
                     <p className="text-gray-600 mb-4">
-                      Let AI examine your entire codebase and intelligently suggest
-                      the perfect bundle configuration based on your project structure.
+                      cntx-ui starts with a "master" bundle containing all your files. Let's explore the basics 
+                      and learn how to create focused bundles for better AI assistance.
                     </p>
 
-                    <Alert className="border-purple-200 bg-purple-50">
-                      <Sparkles className="w-4 h-4" />
+                    <Alert className="border-blue-200 bg-blue-50">
+                      <FolderOpen className="w-4 h-4" />
                       <AlertDescription>
-                        <strong>🎯 AI-Powered Bundle Design:</strong> Instead of guessing what bundles to create,
-                        let AI analyze your code structure and suggest optimal groupings.
+                        <strong>✅ You're ready to go!</strong> cntx-ui has already created a master bundle with all your project files.
+                        Now let's organize them into meaningful collections.
                       </AlertDescription>
                     </Alert>
                   </div>

@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BundleList } from './components/BundleList'
 import { FileTree } from './components/FileTree'
-import { BundleConfig } from './components/BundleConfig'
-import { CursorRulesManager } from './components/CursorRulesManager'
+import { SimpleBundleConfig } from './components/SimpleBundleConfig'
+import { AIRulesManager } from './components/AIRulesManager'
 import { HiddenFilesManager } from './components/HiddenFilesManager'
 import { SetupBanner, SetupChecklist, UsageGuidance, WorkflowInstructions, QuickCliReference } from './components/SetupComponents'
 import SetupScreen from './components/SetupScreen'
@@ -89,52 +89,49 @@ function App() {
             {/* Main Content - Flexible width */}
             <div className="flex-1 min-w-0">
               <Tabs defaultValue="bundles" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-5">
-                  <TabsTrigger value="bundles">Bundles</TabsTrigger>
-                  <TabsTrigger value="files">Files</TabsTrigger>
-                  <TabsTrigger value="config">Config</TabsTrigger>
-                  <TabsTrigger value="hidden" className="flex items-center gap-1">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="bundles">Bundles & Files</TabsTrigger>
+                  <TabsTrigger value="settings" className="flex items-center gap-1">
                     <EyeOff className="w-3 h-3" />
-                    <span className="hidden sm:inline">Hidden</span>
+                    <span>Settings</span>
                   </TabsTrigger>
                   <TabsTrigger value="cursor" className="flex items-center gap-1">
                     <Sparkles className="w-3 h-3" />
-                    <span className="hidden sm:inline">Cursor</span>
+                    <span>AI Rules</span>
                   </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="bundles">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Bundle Management</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <BundleList />
-                    </CardContent>
-                  </Card>
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Bundle Management</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <BundleList />
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Project Files</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <FileTree />
+                      </CardContent>
+                    </Card>
+                  </div>
                 </TabsContent>
 
-                <TabsContent value="files">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>File Explorer</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <FileTree />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="config">
-                  <BundleConfig />
-                </TabsContent>
-
-                <TabsContent value="hidden">
-                  <HiddenFilesManager />
+                <TabsContent value="settings">
+                  <div className="space-y-6">
+                    <HiddenFilesManager />
+                    <SimpleBundleConfig />
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="cursor">
-                  <CursorRulesManager />
+                  <AIRulesManager />
                 </TabsContent>
               </Tabs>
             </div>

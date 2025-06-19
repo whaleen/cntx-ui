@@ -33,6 +33,7 @@ export class CntxServer {
     this.HIDDEN_FILES_CONFIG = join(this.CNTX_DIR, 'hidden-files.json');
     this.IGNORE_FILE = join(cwd, '.cntxignore');
     this.CURSOR_RULES_FILE = join(cwd, '.cursorrules');
+    this.CLAUDE_MD_FILE = join(cwd, 'CLAUDE.md');
 
     this.bundles = new Map();
     this.ignorePatterns = [];
@@ -216,8 +217,67 @@ export class CntxServer {
 
   loadIgnorePatterns() {
     const systemPatterns = [
+      // Version control
       '**/.git/**',
+      '**/.svn/**',
+      '**/.hg/**',
+      
+      // Dependencies
       '**/node_modules/**',
+      '**/vendor/**',
+      '**/.pnp/**',
+      
+      // Build outputs
+      '**/dist/**',
+      '**/build/**',
+      '**/out/**',
+      '**/.next/**',
+      '**/.nuxt/**',
+      '**/target/**',
+      
+      // Package files
+      '**/*.tgz',
+      '**/*.tar.gz',
+      '**/*.zip',
+      '**/*.rar',
+      '**/*.7z',
+      
+      // Logs
+      '**/*.log',
+      '**/logs/**',
+      
+      // Cache directories
+      '**/.cache/**',
+      '**/.parcel-cache/**',
+      '**/.nyc_output/**',
+      '**/coverage/**',
+      '**/.pytest_cache/**',
+      '**/__pycache__/**',
+      
+      // IDE/Editor files
+      '**/.vscode/**',
+      '**/.idea/**',
+      '**/*.swp',
+      '**/*.swo',
+      '**/*~',
+      
+      // OS files
+      '**/.DS_Store',
+      '**/Thumbs.db',
+      '**/desktop.ini',
+      
+      // Environment files
+      '**/.env',
+      '**/.env.local',
+      '**/.env.*.local',
+      
+      // Lock files
+      '**/package-lock.json',
+      '**/yarn.lock',
+      '**/pnpm-lock.yaml',
+      '**/Cargo.lock',
+      
+      // cntx-ui specific
       '**/.cntx/**'
     ];
 
@@ -497,6 +557,92 @@ Add your specific project rules and preferences below:
     writeFileSync(this.CURSOR_RULES_FILE, content, 'utf8');
   }
 
+  loadClaudeMd() {
+    if (existsSync(this.CLAUDE_MD_FILE)) {
+      return readFileSync(this.CLAUDE_MD_FILE, 'utf8');
+    }
+    return this.getDefaultClaudeMd();
+  }
+
+  getDefaultClaudeMd() {
+    // Get project info for context
+    let projectInfo = { name: 'unknown', description: '', type: 'general' };
+    const pkgPath = join(this.CWD, 'package.json');
+
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        projectInfo = {
+          name: pkg.name || 'unknown',
+          description: pkg.description || '',
+          type: this.detectProjectType(pkg)
+        };
+      } catch (e) {
+        // Use defaults if package.json is invalid
+      }
+    }
+
+    return this.generateClaudeMdTemplate(projectInfo);
+  }
+
+  generateClaudeMdTemplate(projectInfo) {
+    const { name, description, type } = projectInfo;
+    
+    let template = `# ${name}
+
+${description ? `${description}\n\n` : ''}## Project Structure
+
+This project uses cntx-ui for bundle management and AI context organization.
+
+### Bundles
+
+`;
+
+    // Add bundle information
+    this.bundles.forEach((bundle, bundleName) => {
+      template += `- **${bundleName}**: ${bundle.files.length} files\n`;
+    });
+
+    template += `
+### Development Guidelines
+
+- Follow the existing code style and patterns
+- Use TypeScript for type safety
+- Write meaningful commit messages
+- Test changes thoroughly
+
+### Key Files
+
+- \`.cntx/config.json\` - Bundle configuration
+- \`.cursorrules\` - AI assistant rules
+- \`CLAUDE.md\` - Project context for Claude
+`;
+
+    if (type === 'react') {
+      template += `
+### React Specific
+
+- Use functional components with hooks
+- Follow React best practices
+- Use TypeScript interfaces for props
+`;
+    } else if (type === 'node') {
+      template += `
+### Node.js Specific
+
+- Use ES modules (import/export)
+- Follow async/await patterns
+- Proper error handling
+`;
+    }
+
+    return template;
+  }
+
+  saveClaudeMd(content) {
+    writeFileSync(this.CLAUDE_MD_FILE, content, 'utf8');
+  }
+
   shouldIgnoreFile(filePath) {
     const relativePath = relative(this.CWD, filePath).replace(/\\\\/g, '/');
 
@@ -731,6 +877,7 @@ Add your specific project rules and preferences below:
 <cntx:bundle xmlns:cntx="https://cntx.dev/schema" name="${bundleName}" generated="${new Date().toISOString()}">
 `;
 
+    // Project information
     const pkgPath = join(this.CWD, 'package.json');
     if (existsSync(pkgPath)) {
       try {
@@ -749,33 +896,222 @@ Add your specific project rules and preferences below:
       }
     }
 
+    // Bundle overview section
+    const filesByType = this.categorizeFiles(files);
+    const entryPoints = this.identifyEntryPoints(files);
+    
+    xml += `  <cntx:overview>
+    <cntx:purpose>${this.escapeXml(this.getBundlePurpose(bundleName))}</cntx:purpose>
+    <cntx:file-types>
+`;
+
+    Object.entries(filesByType).forEach(([type, typeFiles]) => {
+      xml += `      <cntx:type name="${type}" count="${typeFiles.length}" />
+`;
+    });
+
+    xml += `    </cntx:file-types>
+`;
+
+    if (entryPoints.length > 0) {
+      xml += `    <cntx:entry-points>
+`;
+      entryPoints.forEach(file => {
+        xml += `      <cntx:file>${file}</cntx:file>
+`;
+      });
+      xml += `    </cntx:entry-points>
+`;
+    }
+
+    xml += `  </cntx:overview>
+`;
+
+    // Files organized by type
     xml += `  <cntx:files count="${files.length}">
 `;
 
-    files.forEach(file => {
-      const fullPath = join(this.CWD, file);
-      xml += `    <cntx:file path="${file}" ext="${extname(file)}">
+    // Entry points first
+    if (entryPoints.length > 0) {
+      xml += `    <cntx:group type="entry-points" description="Main entry files for this bundle">
 `;
+      entryPoints.forEach(file => {
+        xml += this.generateFileXML(file);
+      });
+      xml += `    </cntx:group>
+`;
+    }
 
-      try {
-        const stat = statSync(fullPath);
-        const content = readFileSync(fullPath, 'utf8');
-        xml += `      <cntx:meta size="${stat.size}" modified="${stat.mtime.toISOString()}" />
-      <cntx:content><![CDATA[${content}]]></cntx:content>
+    // Then organize by file type
+    Object.entries(filesByType).forEach(([type, typeFiles]) => {
+      if (type === 'entry-points') return; // Already handled above
+      
+      const remainingFiles = typeFiles.filter(file => !entryPoints.includes(file));
+      if (remainingFiles.length > 0) {
+        xml += `    <cntx:group type="${type}" description="${this.getTypeDescription(type)}">
 `;
-      } catch (e) {
-        xml += `      <cntx:error>Could not read file: ${e.message}</cntx:error>
+        remainingFiles.forEach(file => {
+          xml += this.generateFileXML(file);
+        });
+        xml += `    </cntx:group>
 `;
       }
-
-      xml += `    </cntx:file>
-`;
     });
 
     xml += `  </cntx:files>
 </cntx:bundle>`;
     return xml;
   }
+
+  categorizeFiles(files) {
+    const categories = {
+      'components': [],
+      'hooks': [],
+      'utilities': [],
+      'configuration': [],
+      'styles': [],
+      'types': [],
+      'tests': [],
+      'documentation': [],
+      'other': []
+    };
+
+    files.forEach(file => {
+      const ext = extname(file).toLowerCase();
+      const basename = file.toLowerCase();
+      
+      if (basename.includes('component') || file.includes('/components/') || 
+          ext === '.jsx' || ext === '.tsx' && !basename.includes('test')) {
+        categories.components.push(file);
+      } else if (basename.includes('hook') || file.includes('/hooks/')) {
+        categories.hooks.push(file);
+      } else if (basename.includes('util') || file.includes('/utils/') || 
+                 basename.includes('helper') || file.includes('/lib/')) {
+        categories.utilities.push(file);
+      } else if (ext === '.json' || basename.includes('config') || 
+                 ext === '.yaml' || ext === '.yml' || ext === '.toml') {
+        categories.configuration.push(file);
+      } else if (ext === '.css' || ext === '.scss' || ext === '.less') {
+        categories.styles.push(file);
+      } else if (basename.includes('type') || ext === '.d.ts' || 
+                 file.includes('/types/')) {
+        categories.types.push(file);
+      } else if (basename.includes('test') || basename.includes('spec') || 
+                 file.includes('/test/') || file.includes('/__tests__/')) {
+        categories.tests.push(file);
+      } else if (ext === '.md' || basename.includes('readme') || 
+                 basename.includes('doc')) {
+        categories.documentation.push(file);
+      } else {
+        categories.other.push(file);
+      }
+    });
+
+    // Remove empty categories
+    Object.keys(categories).forEach(key => {
+      if (categories[key].length === 0) {
+        delete categories[key];
+      }
+    });
+
+    return categories;
+  }
+
+  identifyEntryPoints(files) {
+    const entryPoints = [];
+    
+    files.forEach(file => {
+      const basename = file.toLowerCase();
+      
+      // Common entry point patterns
+      if (basename.includes('main.') || basename.includes('index.') || 
+          basename.includes('app.') || basename === 'server.js' ||
+          file.endsWith('/App.tsx') || file.endsWith('/App.jsx') ||
+          file.endsWith('/main.tsx') || file.endsWith('/main.js') ||
+          file.endsWith('/index.tsx') || file.endsWith('/index.js')) {
+        entryPoints.push(file);
+      }
+    });
+
+    return entryPoints;
+  }
+
+  getBundlePurpose(bundleName) {
+    const purposes = {
+      'master': 'Complete project overview with all source files',
+      'frontend': 'User interface components, pages, and client-side logic',
+      'backend': 'Server-side logic, APIs, and backend services',
+      'api': 'API endpoints, routes, and server communication logic',
+      'server': 'Main server application and core backend functionality',
+      'components': 'Reusable UI components and interface elements',
+      'ui-components': 'User interface components and design system elements',
+      'config': 'Configuration files, settings, and environment setup',
+      'docs': 'Documentation, README files, and project guides',
+      'utils': 'Utility functions, helpers, and shared libraries',
+      'types': 'TypeScript type definitions and interfaces',
+      'tests': 'Test files, test utilities, and testing configuration'
+    };
+
+    return purposes[bundleName] || `Bundle containing ${bundleName}-related files`;
+  }
+
+  getTypeDescription(type) {
+    const descriptions = {
+      'components': 'React/UI components and interface elements',
+      'hooks': 'Custom React hooks and state management',
+      'utilities': 'Helper functions, utilities, and shared libraries',
+      'configuration': 'Configuration files, settings, and build configs',
+      'styles': 'CSS, SCSS, and styling files',
+      'types': 'TypeScript type definitions and interfaces',
+      'tests': 'Test files and testing utilities',
+      'documentation': 'README files, docs, and guides',
+      'other': 'Additional project files'
+    };
+
+    return descriptions[type] || `Files categorized as ${type}`;
+  }
+
+  generateFileXML(file) {
+    const fullPath = join(this.CWD, file);
+    let fileXml = `      <cntx:file path="${file}" ext="${extname(file)}">
+`;
+
+    try {
+      const stat = statSync(fullPath);
+      const content = readFileSync(fullPath, 'utf8');
+      
+      // Add role indicator for certain files
+      const role = this.getFileRole(file);
+      const roleAttr = role ? ` role="${role}"` : '';
+      
+      fileXml = `      <cntx:file path="${file}" ext="${extname(file)}"${roleAttr}>
+`;
+      fileXml += `        <cntx:meta size="${stat.size}" modified="${stat.mtime.toISOString()}" lines="${content.split('\n').length}" />
+        <cntx:content><![CDATA[${content}]]></cntx:content>
+`;
+    } catch (e) {
+      fileXml += `        <cntx:error>Could not read file: ${e.message}</cntx:error>
+`;
+    }
+
+    fileXml += `      </cntx:file>
+`;
+    return fileXml;
+  }
+
+  getFileRole(file) {
+    const basename = file.toLowerCase();
+    
+    if (basename.includes('main.') || basename.includes('index.')) return 'entry-point';
+    if (basename.includes('app.')) return 'main-component';
+    if (file === 'server.js') return 'server-entry';
+    if (basename.includes('config')) return 'configuration';
+    if (basename.includes('package.json')) return 'package-config';
+    if (basename.includes('readme')) return 'documentation';
+    
+    return null;
+  }
+
 
   escapeXml(text) {
     return String(text)
@@ -1068,6 +1404,27 @@ Add your specific project rules and preferences below:
         };
         res.end(JSON.stringify(templates));
 
+      } else if (url.pathname === '/api/claude-md') {
+        if (req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          const claudeMd = this.loadClaudeMd();
+          res.end(claudeMd);
+        } else if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const { content } = JSON.parse(body);
+              this.saveClaudeMd(content);
+              res.writeHead(200);
+              res.end('OK');
+            } catch (e) {
+              res.writeHead(400);
+              res.end('Invalid request');
+            }
+          });
+        }
+
       } else if (url.pathname === '/api/test-pattern') {
         if (req.method === 'POST') {
           let body = '';
@@ -1222,6 +1579,26 @@ Add your specific project rules and preferences below:
         });
 
         res.end(JSON.stringify(stats));
+
+      } else if (url.pathname.startsWith('/api/bundle-categories/')) {
+        const bundleName = url.pathname.split('/').pop();
+        const bundle = this.bundles.get(bundleName);
+        
+        if (bundle) {
+          const filesByType = this.categorizeFiles(bundle.files);
+          const entryPoints = this.identifyEntryPoints(bundle.files);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            purpose: this.getBundlePurpose(bundleName),
+            filesByType,
+            entryPoints,
+            totalFiles: bundle.files.length
+          }));
+        } else {
+          res.writeHead(404);
+          res.end('Bundle not found');
+        }
 
       } else if (url.pathname === '/api/reset-hidden-files') {
         if (req.method === 'POST') {
