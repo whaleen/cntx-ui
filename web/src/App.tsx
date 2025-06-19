@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BundleList } from './components/BundleList'
 import { FileTree } from './components/FileTree'
-import { SimpleBundleConfig } from './components/SimpleBundleConfig'
+import { EnhancedBundleConfig } from './components/EnhancedBundleConfig'
 import { AIRulesManager } from './components/AIRulesManager'
 import { HiddenFilesManager } from './components/HiddenFilesManager'
 import { SetupBanner, SetupChecklist, UsageGuidance, WorkflowInstructions, QuickCliReference } from './components/SetupComponents'
@@ -126,7 +126,7 @@ function App() {
                 <TabsContent value="settings">
                   <div className="space-y-6">
                     <HiddenFilesManager />
-                    <SimpleBundleConfig />
+                    <EnhancedBundleConfig />
                   </div>
                 </TabsContent>
 

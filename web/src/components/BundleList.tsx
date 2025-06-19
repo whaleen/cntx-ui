@@ -194,16 +194,14 @@ export function BundleList() {
       const result = await response.json()
       console.log('Remove API Response:', result)
 
-      // Force complete cache invalidation and refresh
-      queryClient.removeQueries({ queryKey: ['bundles'] })
+      // Invalidate all related queries to force refresh
       queryClient.invalidateQueries({ queryKey: ['bundles'] })
+      queryClient.invalidateQueries({ queryKey: ['hidden-files'] })
       
-      // Wait a moment then force fetch fresh data
-      setTimeout(async () => {
-        await refetch()
-        setButtonState(`remove-${bundleName}-${fileName}`, 'success')
-        toast.success(`Removed ${fileName}`)
-      }, 100)
+      // Force immediate refetch and UI update
+      await refetch()
+      setButtonState(`remove-${bundleName}-${fileName}`, 'success')
+      toast.success(`Hidden ${fileName} from ${bundleName} bundle`)
       
     } catch (error) {
       console.error('Failed to remove file:', error)
