@@ -41,7 +41,7 @@ switch (command) {
     break;
 
   default:
-    console.log(`cntx-ui v2.0.3
+    console.log(`cntx-ui v2.0.5
         
 Usage:
   cntx-ui init                Initialize configuration

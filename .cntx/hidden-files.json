@@ -1,7 +1,18 @@
 {
   "globalHidden": [],
   "bundleSpecific": {
-    "master": []
+    "master": [
+      "web/components.json"
+    ],
+    "config": [],
+    "docs": [],
+    "ui-components": [
+      "web/src/components/ui/badge.tsx",
+      "web/src/components/ui/card.tsx",
+      "web/src/components/ui/label.tsx",
+      "web/src/components/ui/sonner.tsx"
+    ],
+    "frontend": []
   },
   "userIgnorePatterns": [],
   "disabledSystemPatterns": []
