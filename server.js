@@ -1771,11 +1771,15 @@ export function initConfig(cwd = process.cwd()) {
     console.error('❌ Error creating cursor rules:', error);
   }
 
-  console.log('✅ cntx-ui initialized');
-  console.log(`📝 Edit ${relative(cwd, server.CONFIG_FILE)} to customize bundles`);
-  console.log(`🚫 Edit ${relative(cwd, server.IGNORE_FILE)} to customize ignored files`);
-  console.log(`🤖 Edit ${relative(cwd, server.CURSOR_RULES_FILE)} to customize AI assistant rules`);
-  console.log(`🎯 Use AI to suggest bundle configurations: run 'cntx-ui bundle master' then use the setup guide`);
+  console.log('✅ cntx-ui initialized successfully!');
+  console.log('');
+  console.log('🚀 Next step: Start the web interface');
+  console.log('   Run: cntx-ui watch');
+  console.log('');
+  console.log('📱 Then visit: http://localhost:3333');
+  console.log('   Follow the setup guide to create your first bundles');
+  console.log('');
+  console.log('💡 The web interface handles everything - no manual file editing needed!');
 }
 
 export function getStatus(cwd = process.cwd()) {
