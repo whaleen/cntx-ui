@@ -1,7 +1,7 @@
 {
   "name": "cntx-ui",
   "type": "module",
-  "version": "2.0.11",
+  "version": "2.0.12",
   "description": "File context management tool with web UI and MCP server for AI development workflows - bundle project files for LLM consumption",
   "keywords": [
     "ai-development",
