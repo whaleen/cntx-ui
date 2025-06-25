@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { startServer, startMCPServer, generateBundle, initConfig, getStatus } from '../server.js';
+import { startServer, startMCPServer, generateBundle, initConfig, getStatus, setupMCP } from '../server.js';
 
 const args = process.argv.slice(2);
 const command = args[0] || 'watch';
@@ -14,7 +14,8 @@ process.on('SIGINT', () => {
 switch (command) {
   case 'watch':
     const port = parseInt(args[1]) || 3333;
-    startServer({ port });
+    const withMcp = args.includes('--with-mcp');
+    startServer({ port, withMcp });
     break;
 
   case 'mcp':
@@ -40,19 +41,27 @@ switch (command) {
     getStatus();
     break;
 
+  case 'setup-mcp':
+    setupMCP();
+    break;
+
   default:
     console.log(`cntx-ui v2.0.8
         
 Usage:
   cntx-ui init                Initialize configuration
   cntx-ui watch [port]        Start web server (default port: 3333)
+  cntx-ui watch --with-mcp    Start web server with MCP status tracking
   cntx-ui mcp                 Start MCP server (stdio transport)
+  cntx-ui setup-mcp           Add this project to Claude Desktop MCP config
   cntx-ui bundle [name]       Generate specific bundle (default: master)
   cntx-ui status              Show current status
   
 Examples:
   cntx-ui init
   cntx-ui watch 8080
+  cntx-ui watch --with-mcp
+  cntx-ui setup-mcp
   cntx-ui mcp
   cntx-ui bundle api
 

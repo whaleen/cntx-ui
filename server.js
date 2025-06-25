@@ -1,10 +1,11 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, watch, readdirSync, statSync } from 'fs';
-import { join, dirname, relative, extname } from 'path';
+import { join, dirname, relative, extname, basename } from 'path';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { startMCPTransport } from './lib/mcp-transport.js';
+import { homedir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -25,9 +26,10 @@ function getContentType(filePath) {
 }
 
 export class CntxServer {
-  constructor(cwd = process.cwd()) {
+  constructor(cwd = process.cwd(), options = {}) {
     this.CWD = cwd;
     this.CNTX_DIR = join(cwd, '.cntx');
+    this.isQuietMode = options.quiet || false;
     this.CONFIG_FILE = join(this.CNTX_DIR, 'config.json');
     this.BUNDLES_FILE = join(this.CNTX_DIR, 'bundles.json');
     this.HIDDEN_FILES_CONFIG = join(this.CNTX_DIR, 'hidden-files.json');
@@ -40,6 +42,8 @@ export class CntxServer {
     this.watchers = [];
     this.clients = new Set();
     this.isScanning = false;
+    this.mcpServer = null;
+    this.mcpServerStarted = false;
 
     this.hiddenFilesConfig = {
       globalHidden: [], // Files hidden across all bundles
@@ -95,7 +99,7 @@ export class CntxServer {
         const config = JSON.parse(readFileSync(this.HIDDEN_FILES_CONFIG, 'utf8'));
         this.hiddenFilesConfig = { ...this.hiddenFilesConfig, ...config };
       } catch (e) {
-        console.warn('Could not load hidden files config:', e.message);
+        if (!this.isQuietMode) console.warn('Could not load hidden files config:', e.message);
       }
     }
   }
@@ -104,7 +108,7 @@ export class CntxServer {
     try {
       writeFileSync(this.HIDDEN_FILES_CONFIG, JSON.stringify(this.hiddenFilesConfig, null, 2));
     } catch (e) {
-      console.error('Failed to save hidden files config:', e.message);
+      if (!this.isQuietMode) console.error('Failed to save hidden files config:', e.message);
     }
   }
 
@@ -340,7 +344,7 @@ export class CntxServer {
           }
         });
       } catch (e) {
-        console.warn('Could not load bundle states:', e.message);
+        if (!this.isQuietMode) console.warn('Could not load bundle states:', e.message);
       }
     }
   }
@@ -672,7 +676,7 @@ This project uses cntx-ui for bundle management and AI context organization.
       const regex = new RegExp('^' + regexPattern + '$');
       return regex.test(path);
     } catch (e) {
-      console.log(`Regex error for pattern "${pattern}": ${e.message}`);
+      if (!this.isQuietMode) console.log(`Regex error for pattern "${pattern}": ${e.message}`);
       return false;
     }
   }
@@ -796,7 +800,7 @@ This project uses cntx-ui for bundle management and AI context organization.
       if (filename && !this.isScanning) {
         const fullPath = join(this.CWD, filename);
         if (!this.shouldIgnoreFile(fullPath)) {
-          console.log(`File ${eventType}: ${filename}`);
+          if (!this.isQuietMode) console.log(`File ${eventType}: ${filename}`);
           this.markBundlesChanged(filename.replace(/\\\\/g, '/'));
           this.broadcastUpdate();
         }
@@ -837,7 +841,7 @@ This project uses cntx-ui for bundle management and AI context organization.
 
   generateAllBundles() {
     this.isScanning = true;
-    console.log('Scanning files and generating bundles...');
+    if (!this.isQuietMode) console.log('Scanning files and generating bundles...');
 
     this.bundles.forEach((bundle, name) => {
       this.generateBundle(name);
@@ -845,14 +849,14 @@ This project uses cntx-ui for bundle management and AI context organization.
 
     this.saveBundleStates();
     this.isScanning = false;
-    console.log('Bundle generation complete');
+    if (!this.isQuietMode) console.log('Bundle generation complete');
   }
 
   generateBundle(name) {
     const bundle = this.bundles.get(name);
     if (!bundle) return;
 
-    console.log(`Generating bundle: ${name}`);
+    if (!this.isQuietMode) console.log(`Generating bundle: ${name}`);
     const allFiles = this.getAllFiles();
 
     // Filter files by bundle patterns
@@ -869,7 +873,7 @@ This project uses cntx-ui for bundle management and AI context organization.
     bundle.lastGenerated = new Date().toISOString();
     bundle.size = Buffer.byteLength(bundle.content, 'utf8');
 
-    console.log(`Generated bundle '${name}' with ${bundle.files.length} files (${(bundle.size / 1024).toFixed(1)}kb)`);
+    if (!this.isQuietMode) console.log(`Generated bundle '${name}' with ${bundle.files.length} files (${(bundle.size / 1024).toFixed(1)}kb)`);
   }
 
   generateBundleXML(bundleName, files) {
@@ -1200,7 +1204,7 @@ This project uses cntx-ui for bundle management and AI context organization.
               res.end(content);
               return;
             } catch (e) {
-              console.error('Error serving index.html:', e);
+              if (!this.isQuietMode) console.error('Error serving index.html:', e);
             }
           }
 
@@ -1233,6 +1237,9 @@ This project uses cntx-ui for bundle management and AI context organization.
                 <div class="api-link">
                   <strong>Files:</strong> <a href="/api/files">/api/files</a>
                 </div>
+                <div class="api-link">
+                  <strong>Status:</strong> <a href="/api/status">/api/status</a>
+                </div>
                 
                 <h2>Web Interface:</h2>
                 <p>The web interface is not available because it wasn't built when this package was published.</p>
@@ -1262,7 +1269,7 @@ This project uses cntx-ui for bundle management and AI context organization.
               res.end(content);
               return;
             } catch (e) {
-              console.error('Error serving static file:', e);
+              if (!this.isQuietMode) console.error('Error serving static file:', e);
             }
           }
         }
@@ -1334,20 +1341,20 @@ This project uses cntx-ui for bundle management and AI context organization.
           req.on('data', chunk => body += chunk);
           req.on('end', () => {
             try {
-              console.log('🔍 Received config save request');
+              if (!this.isQuietMode) console.log('🔍 Received config save request');
               const config = JSON.parse(body);
-              console.log('📝 Config to save:', JSON.stringify(config, null, 2));
+              if (!this.isQuietMode) console.log('📝 Config to save:', JSON.stringify(config, null, 2));
 
               // Ensure .cntx directory exists
               if (!existsSync(this.CNTX_DIR)) {
-                console.log('📁 Creating .cntx directory...');
+                if (!this.isQuietMode) console.log('📁 Creating .cntx directory...');
                 mkdirSync(this.CNTX_DIR, { recursive: true });
               }
 
               // Write config file
-              console.log('💾 Writing config to:', this.CONFIG_FILE);
+              if (!this.isQuietMode) console.log('💾 Writing config to:', this.CONFIG_FILE);
               writeFileSync(this.CONFIG_FILE, JSON.stringify(config, null, 2));
-              console.log('✅ Config file written successfully');
+              if (!this.isQuietMode) console.log('✅ Config file written successfully');
 
               // Reload configuration
               this.loadConfig();
@@ -1356,17 +1363,17 @@ This project uses cntx-ui for bundle management and AI context organization.
 
               res.writeHead(200, { 'Content-Type': 'text/plain' });
               res.end('OK');
-              console.log('✅ Config save response sent');
+              if (!this.isQuietMode) console.log('✅ Config save response sent');
 
             } catch (e) {
-              console.error('❌ Config save error:', e);
+              if (!this.isQuietMode) console.error('❌ Config save error:', e);
               res.writeHead(400, { 'Content-Type': 'text/plain' });
               res.end(`Error: ${e.message}`);
             }
           });
 
           req.on('error', (err) => {
-            console.error('❌ Request error:', err);
+            if (!this.isQuietMode) console.error('❌ Request error:', err);
             if (!res.headersSent) {
               res.writeHead(500, { 'Content-Type': 'text/plain' });
               res.end('Internal Server Error');
@@ -1630,6 +1637,34 @@ This project uses cntx-ui for bundle management and AI context organization.
           });
         }
 
+      } else if (url.pathname === '/api/status') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        const statusInfo = {
+          server: {
+            version: '2.0.8',
+            workingDirectory: this.CWD,
+            startTime: new Date().toISOString(),
+            isScanning: this.isScanning
+          },
+          bundles: {
+            count: this.bundles.size,
+            names: Array.from(this.bundles.keys()),
+            totalFiles: Array.from(this.bundles.values()).reduce((sum, bundle) => sum + bundle.files.length, 0)
+          },
+          mcp: {
+            available: true,
+            serverStarted: this.mcpServerStarted,
+            command: 'npx cntx-ui mcp',
+            setupScript: './examples/claude-mcp-setup.sh'
+          },
+          files: {
+            total: this.getAllFiles().length,
+            hiddenGlobally: this.hiddenFilesConfig.globalHidden.length,
+            ignorePatterns: this.ignorePatterns.length
+          }
+        };
+        res.end(JSON.stringify(statusInfo, null, 2));
+
       } else {
         res.writeHead(404);
         res.end('Not found');
@@ -1644,9 +1679,11 @@ This project uses cntx-ui for bundle management and AI context organization.
     });
 
     server.listen(port, () => {
-      console.log(`🚀 cntx-ui API running at http://localhost:${port}`);
-      console.log(`📁 Watching: ${this.CWD}`);
-      console.log(`📦 Bundles: ${Array.from(this.bundles.keys()).join(', ')}`);
+      if (!this.isQuietMode) {
+        console.log(`🚀 cntx-ui API running at http://localhost:${port}`);
+        console.log(`📁 Watching: ${this.CWD}`);
+        console.log(`📦 Bundles: ${Array.from(this.bundles.keys()).join(', ')}`);
+      }
     });
 
     return server;
@@ -1678,32 +1715,45 @@ This project uses cntx-ui for bundle management and AI context organization.
 }
 
 export function startServer(options = {}) {
-  const server = new CntxServer(options.cwd);
+  const server = new CntxServer(options.cwd, { quiet: options.quiet });
   server.init();
+  
+  if (options.withMcp) {
+    server.mcpServerStarted = true;
+    if (!server.isQuietMode) {
+      console.log('🔗 MCP server tracking enabled - use /api/status to check MCP configuration');
+    }
+  }
+  
   return server.startServer(options.port);
 }
 
 export function startMCPServer(options = {}) {
-  const server = new CntxServer(options.cwd);
+  const server = new CntxServer(options.cwd, { quiet: true });
   server.init();
   startMCPTransport(server);
   return server;
 }
 
-export function generateBundle(name = 'master', cwd = process.cwd()) {
-  const server = new CntxServer(cwd);
+export function generateBundle(name = 'master', cwd = process.cwd(), options = {}) {
+  const server = new CntxServer(cwd, { quiet: options.quiet });
   server.init();
   server.generateBundle(name);
   server.saveBundleStates();
 }
 
-export function initConfig(cwd = process.cwd()) {
-  console.log('🚀 Starting initConfig...');
-  console.log('📂 Working directory:', cwd);
+export function initConfig(cwd = process.cwd(), options = {}) {
+  const isQuiet = options.quiet || false;
+  if (!isQuiet) {
+    console.log('🚀 Starting initConfig...');
+    console.log('📂 Working directory:', cwd);
+  }
 
-  const server = new CntxServer(cwd);
-  console.log('📁 CNTX_DIR:', server.CNTX_DIR);
-  console.log('📄 CONFIG_FILE path:', server.CONFIG_FILE);
+  const server = new CntxServer(cwd, { quiet: isQuiet });
+  if (!isQuiet) {
+    console.log('📁 CNTX_DIR:', server.CNTX_DIR);
+    console.log('📄 CONFIG_FILE path:', server.CONFIG_FILE);
+  }
 
   const defaultConfig = {
     bundles: {
@@ -1713,86 +1763,161 @@ export function initConfig(cwd = process.cwd()) {
 
   try {
     // Create .cntx directory
-    console.log('🔍 Checking if .cntx directory exists...');
+    if (!isQuiet) console.log('🔍 Checking if .cntx directory exists...');
     if (!existsSync(server.CNTX_DIR)) {
-      console.log('📁 Creating .cntx directory...');
+      if (!isQuiet) console.log('📁 Creating .cntx directory...');
       mkdirSync(server.CNTX_DIR, { recursive: true });
-      console.log('✅ .cntx directory created');
+      if (!isQuiet) console.log('✅ .cntx directory created');
     } else {
-      console.log('✅ .cntx directory already exists');
+      if (!isQuiet) console.log('✅ .cntx directory already exists');
     }
 
     // List directory contents before writing config
-    console.log('📋 Directory contents before writing config:');
-    const beforeFiles = readdirSync(server.CNTX_DIR);
-    console.log('Files:', beforeFiles);
-
-    // Write config.json
-    console.log('📝 Writing config.json...');
-    console.log('📄 Config content:', JSON.stringify(defaultConfig, null, 2));
-    console.log('📍 Writing to path:', server.CONFIG_FILE);
-
-    writeFileSync(server.CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
-    console.log('✅ writeFileSync completed');
-
-    // Verify file was created
-    console.log('🔍 Checking if config.json exists...');
-    const configExists = existsSync(server.CONFIG_FILE);
-    console.log('Config exists?', configExists);
-
-    if (configExists) {
-      const configContent = readFileSync(server.CONFIG_FILE, 'utf8');
-      console.log('✅ Config file created successfully');
-      console.log('📖 Config content:', configContent);
-    } else {
-      console.log('❌ Config file was NOT created');
+    if (!isQuiet) {
+      console.log('📋 Directory contents before writing config:');
+      const beforeFiles = readdirSync(server.CNTX_DIR);
+      console.log('Files:', beforeFiles);
     }
 
-    // List directory contents after writing config
-    console.log('📋 Directory contents after writing config:');
-    const afterFiles = readdirSync(server.CNTX_DIR);
-    console.log('Files:', afterFiles);
+    // Write config.json
+    if (!isQuiet) {
+      console.log('📝 Writing config.json...');
+      console.log('📄 Config content:', JSON.stringify(defaultConfig, null, 2));
+      console.log('📍 Writing to path:', server.CONFIG_FILE);
+    }
+
+    writeFileSync(server.CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
+    if (!isQuiet) console.log('✅ writeFileSync completed');
+
+    // Verify file was created
+    if (!isQuiet) {
+      console.log('🔍 Checking if config.json exists...');
+      const configExists = existsSync(server.CONFIG_FILE);
+      console.log('Config exists?', configExists);
+
+      if (configExists) {
+        const configContent = readFileSync(server.CONFIG_FILE, 'utf8');
+        console.log('✅ Config file created successfully');
+        console.log('📖 Config content:', configContent);
+      } else {
+        console.log('❌ Config file was NOT created');
+      }
+
+      // List directory contents after writing config
+      console.log('📋 Directory contents after writing config:');
+      const afterFiles = readdirSync(server.CNTX_DIR);
+      console.log('Files:', afterFiles);
+    }
 
   } catch (error) {
-    console.error('❌ Error in initConfig:', error);
-    console.error('Stack trace:', error.stack);
+    if (!isQuiet) {
+      console.error('❌ Error in initConfig:', error);
+      console.error('Stack trace:', error.stack);
+    }
     throw error;
   }
 
   // Create cursor rules if they don't exist
   try {
     if (!existsSync(server.CURSOR_RULES_FILE)) {
-      console.log('📋 Creating cursor rules...');
+      if (!isQuiet) console.log('📋 Creating cursor rules...');
       const cursorRules = server.getDefaultCursorRules();
       server.saveCursorRules(cursorRules);
-      console.log(`📋 Created ${relative(cwd, server.CURSOR_RULES_FILE)} with project-specific rules`);
+      if (!isQuiet) console.log(`📋 Created ${relative(cwd, server.CURSOR_RULES_FILE)} with project-specific rules`);
     }
   } catch (error) {
-    console.error('❌ Error creating cursor rules:', error);
+    if (!isQuiet) console.error('❌ Error creating cursor rules:', error);
   }
 
-  console.log('✅ cntx-ui initialized successfully!');
-  console.log('');
-  console.log('🚀 Next step: Start the web interface');
-  console.log('   Run: cntx-ui watch');
-  console.log('');
-  console.log('📱 Then visit: http://localhost:3333');
-  console.log('   Follow the setup guide to create your first bundles');
-  console.log('');
-  console.log('💡 The web interface handles everything - no manual file editing needed!');
+  if (!isQuiet) {
+    console.log('✅ cntx-ui initialized successfully!');
+    console.log('');
+    console.log('🚀 Next step: Start the web interface');
+    console.log('   Run: cntx-ui watch');
+    console.log('');
+    console.log('📱 Then visit: http://localhost:3333');
+    console.log('   Follow the setup guide to create your first bundles');
+    console.log('');
+    console.log('💡 The web interface handles everything - no manual file editing needed!');
+  }
 }
 
-export function getStatus(cwd = process.cwd()) {
-  const server = new CntxServer(cwd);
+export function getStatus(cwd = process.cwd(), options = {}) {
+  const server = new CntxServer(cwd, { quiet: options.quiet });
   server.init();
 
-  console.log(`📁 Working directory: ${server.CWD}`);
-  console.log(`📦 Bundles configured: ${server.bundles.size}`);
-  server.bundles.forEach((bundle, name) => {
-    const status = bundle.changed ? '🔄 CHANGED' : '✅ SYNCED';
-    console.log(`  ${name}: ${bundle.files.length} files ${status}`);
-  });
+  if (!options.quiet) {
+    console.log(`📁 Working directory: ${server.CWD}`);
+    console.log(`📦 Bundles configured: ${server.bundles.size}`);
+    server.bundles.forEach((bundle, name) => {
+      const status = bundle.changed ? '🔄 CHANGED' : '✅ SYNCED';
+      console.log(`  ${name}: ${bundle.files.length} files ${status}`);
+    });
 
-  const hasCursorRules = existsSync(server.CURSOR_RULES_FILE);
-  console.log(`🤖 Cursor rules: ${hasCursorRules ? '✅ Configured' : '❌ Not found'}`);
+    const hasCursorRules = existsSync(server.CURSOR_RULES_FILE);
+    console.log(`🤖 Cursor rules: ${hasCursorRules ? '✅ Configured' : '❌ Not found'}`);
+  }
+}
+
+export function setupMCP(cwd = process.cwd(), options = {}) {
+  const isQuiet = options.quiet || false;
+  const projectDir = cwd;
+  const projectName = basename(projectDir);
+  const configFile = join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+
+  if (!isQuiet) {
+    console.log('🔗 Setting up MCP for Claude Desktop...');
+    console.log(`📁 Project: ${projectName} (${projectDir})`);
+  }
+
+  // Create config directory if it doesn't exist
+  const configDir = dirname(configFile);
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+
+  // Read existing config or create empty one
+  let config = { mcpServers: {} };
+  if (existsSync(configFile)) {
+    try {
+      const configContent = readFileSync(configFile, 'utf8');
+      config = JSON.parse(configContent);
+      if (!config.mcpServers) config.mcpServers = {};
+    } catch (error) {
+      if (!isQuiet) console.warn('⚠️  Could not parse existing config, creating new one');
+      config = { mcpServers: {} };
+    }
+  }
+
+  // Add this project's MCP server
+  const serverName = `cntx-ui-${projectName}`;
+  config.mcpServers[serverName] = {
+    command: 'npx',
+    args: ['cntx-ui', 'mcp'],
+    cwd: projectDir
+  };
+
+  // Write updated config
+  try {
+    writeFileSync(configFile, JSON.stringify(config, null, 2));
+    
+    if (!isQuiet) {
+      console.log(`✅ Added MCP server: ${serverName}`);
+      console.log('📋 Your Claude Desktop config now includes:');
+      
+      Object.keys(config.mcpServers).forEach(name => {
+        if (name.startsWith('cntx-ui-')) {
+          console.log(`  • ${name}: ${config.mcpServers[name].cwd}`);
+        }
+      });
+      
+      console.log('🔄 Please restart Claude Desktop to use the updated configuration');
+    }
+  } catch (error) {
+    if (!isQuiet) {
+      console.error('❌ Error writing Claude Desktop config:', error.message);
+      console.error('💡 Make sure Claude Desktop is not running and try again');
+    }
+    throw error;
+  }
 }

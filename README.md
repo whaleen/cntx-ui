@@ -54,8 +54,14 @@ cntx-ui status
 # Start web server on custom port
 cntx-ui watch [port]
 
+# Start web server with MCP status tracking
+cntx-ui watch --with-mcp
+
 # Start MCP server for AI integration
 cntx-ui mcp
+
+# Add project to Claude Desktop MCP configuration
+cntx-ui setup-mcp
 ```
 
 ### MCP Integration
@@ -165,16 +171,68 @@ cntx-ui/
 
 ## MCP Server Setup
 
+### Quick Setup with setup-mcp Command
+
+The easiest way to configure cntx-ui for Claude Desktop:
+
+```bash
+# Navigate to your project directory
+cd /path/to/your/project
+
+# Initialize cntx-ui if not already done
+cntx-ui init
+
+# Add this project to Claude Desktop MCP configuration
+cntx-ui setup-mcp
+```
+
+This automatically adds your project to Claude Desktop's configuration file and allows you to work with multiple projects simultaneously.
+
 ### Claude Desktop Integration
 
-Add to your Claude Desktop configuration (`~/.claude_desktop_config.json`):
+#### Multi-Project Setup (Recommended)
+
+You can use cntx-ui across multiple projects by running `setup-mcp` in each project directory:
+
+```bash
+# Project 1
+cd /Users/you/project1
+cntx-ui setup-mcp
+
+# Project 2  
+cd /Users/you/project2
+cntx-ui setup-mcp
+```
+
+This creates entries in your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
-    "cntx-ui": {
-      "command": "cntx-ui",
-      "args": ["mcp"],
+    "cntx-ui-project1": {
+      "command": "sh",
+      "args": ["-c", "cd /Users/you/project1 && node /path/to/cntx-ui/bin/cntx-ui.js mcp"],
+      "cwd": "/Users/you/project1"
+    },
+    "cntx-ui-project2": {
+      "command": "sh", 
+      "args": ["-c", "cd /Users/you/project2 && node /path/to/cntx-ui/bin/cntx-ui.js mcp"],
+      "cwd": "/Users/you/project2"
+    }
+  }
+}
+```
+
+#### Manual Configuration
+
+For manual setup, add to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "cntx-ui-projectname": {
+      "command": "sh",
+      "args": ["-c", "cd /path/to/your/project && cntx-ui mcp"],
       "cwd": "/path/to/your/project"
     }
   }
@@ -190,10 +248,11 @@ For other MCP-compatible clients, use:
 
 ### MCP Workflow
 
-1. **Visual Configuration**: Use `cntx-ui watch` to configure bundles via web UI
-2. **AI Integration**: AI clients connect via MCP to access bundles
-3. **Real-time Updates**: Changes in web UI immediately available to AI tools
-4. **Dual Mode**: Web UI and MCP server can run simultaneously
+1. **Setup**: Run `cntx-ui setup-mcp` in each project you want to use with Claude Desktop
+2. **Visual Configuration**: Use `cntx-ui watch` to configure bundles via web UI
+3. **AI Integration**: AI clients connect via MCP to access bundles across all configured projects
+4. **Real-time Updates**: Changes in web UI immediately available to AI tools
+5. **Multi-Project**: Claude Desktop can access bundles from all configured projects simultaneously
 
 ## Testing
 
