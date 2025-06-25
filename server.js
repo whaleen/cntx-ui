@@ -1889,11 +1889,11 @@ export function setupMCP(cwd = process.cwd(), options = {}) {
     }
   }
 
-  // Add this project's MCP server
+  // Add this project's MCP server using shell command format that works with Claude Desktop
   const serverName = `cntx-ui-${projectName}`;
   config.mcpServers[serverName] = {
-    command: 'npx',
-    args: ['cntx-ui', 'mcp'],
+    command: 'sh',
+    args: ['-c', `cd ${projectDir} && npx cntx-ui mcp`],
     cwd: projectDir
   };
 
