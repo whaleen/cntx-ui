@@ -149,16 +149,16 @@ export function BundleList() {
   const removeFileFromBundle = async (fileName: string, bundleName: string) => {
     try {
       setButtonState(`remove-${bundleName}-${fileName}`, 'loading')
-      
+
       console.log(`Removing ${fileName} from ${bundleName}`)
-      
+
       // Prevent modifications to master bundle
       if (bundleName === 'master') {
         setButtonState(`remove-${bundleName}-${fileName}`, 'error')
         toast.error('Cannot modify master bundle files')
         return
       }
-      
+
       const response = await fetch('http://localhost:3333/api/hidden-files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,7 +182,7 @@ export function BundleList() {
       // Optimistically update the UI immediately
       queryClient.setQueryData(['bundles'], (oldBundles: Bundle[] | undefined) => {
         if (!oldBundles) return oldBundles
-        
+
         return oldBundles.map(bundle => {
           if (bundle.name === bundleName) {
             return {
@@ -193,32 +193,32 @@ export function BundleList() {
           return bundle
         })
       })
-      
+
       // CRITICAL: Also update the bundle categories immediately
       setBundleCategories(prev => {
         if (!prev[bundleName]) return prev
-        
+
         const updated = { ...prev }
         const categories = updated[bundleName]
-        
+
         // Remove file from all file type categories
         Object.keys(categories.filesByType).forEach(type => {
           categories.filesByType[type] = categories.filesByType[type].filter(file => file !== fileName)
         })
-        
+
         // Remove from entry points if it exists there
         categories.entryPoints = categories.entryPoints.filter(file => file !== fileName)
-        
+
         return updated
       })
-      
+
       // Then invalidate to get fresh data from server
       queryClient.invalidateQueries({ queryKey: ['bundles'] })
       queryClient.invalidateQueries({ queryKey: ['hidden-files'] })
-      
+
       setButtonState(`remove-${bundleName}-${fileName}`, 'success')
       toast.success(`Hidden ${fileName} from ${bundleName} bundle`)
-      
+
     } catch (error) {
       console.error('Failed to remove file:', error)
       setButtonState(`remove-${bundleName}-${fileName}`, 'error')
@@ -229,16 +229,16 @@ export function BundleList() {
   const addFileToBundle = async (fileName: string, bundleName: string) => {
     try {
       setButtonState(`add-${bundleName}-${fileName}`, 'loading')
-      
+
       console.log(`Adding ${fileName} to ${bundleName}`)
-      
+
       // Prevent modifications to master bundle
       if (bundleName === 'master') {
         setButtonState(`add-${bundleName}-${fileName}`, 'error')
         toast.error('Cannot modify master bundle files')
         return
       }
-      
+
       const response = await fetch('http://localhost:3333/api/hidden-files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -264,7 +264,7 @@ export function BundleList() {
       await refetch()
       setButtonState(`add-${bundleName}-${fileName}`, 'success')
       toast.success(`Added ${fileName}`)
-      
+
     } catch (error) {
       console.error('Failed to add file:', error)
       setButtonState(`add-${bundleName}-${fileName}`, 'error')
@@ -513,7 +513,7 @@ export function BundleList() {
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleExpanded(bundle.name)}
-                  className="p-0 h-auto font-normal"
+                  className="p-0 h-auto"
                 >
                   {expandedBundles.has(bundle.name) ? (
                     <ChevronDown className="w-4 h-4 mr-1" />

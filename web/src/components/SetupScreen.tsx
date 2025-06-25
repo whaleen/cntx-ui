@@ -127,7 +127,6 @@ Please analyze the following master bundle and suggest appropriate bundles:
     }
   }
 
-
   const markStepComplete = (stepId: string) => {
     setSetupSteps(prev => prev.map(step =>
       step.id === stepId ? { ...step, completed: true } : step
@@ -135,36 +134,36 @@ Please analyze the following master bundle and suggest appropriate bundles:
   }
 
   const StepIndicator = ({ step, isActive }: { step: SetupStep, isActive: boolean }) => (
-    <div className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isActive ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50'
+    <div className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isActive ? 'bg-accent border border-border' : 'hover:bg-muted/50'
       }`}>
       <div className="flex-shrink-0">
         {step.completed ? (
           <CheckCircle className="w-6 h-6 text-green-500" />
         ) : (
-          <Circle className={`w-6 h-6 ${isActive ? 'text-blue-500' : 'text-gray-300'}`} />
+          <Circle className={`w-6 h-6 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
         )}
       </div>
       <div className="flex-1">
         <div className="flex items-center gap-2">
-          <h3 className={`font-medium ${isActive ? 'text-blue-900' : 'text-gray-900'}`}>
+          <h3 className={`font-medium ${isActive ? 'text-foreground' : 'text-foreground'}`}>
             {step.title}
           </h3>
           {step.required && (
             <Badge variant="outline" className="text-xs">Required</Badge>
           )}
         </div>
-        <p className="text-sm text-gray-600">{step.description}</p>
+        <p className="text-sm text-muted-foreground">{step.description}</p>
       </div>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Welcome to cntx-ui</h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <h1 className="text-4xl font-thin text-foreground mb-2">Welcome to cntx-ui</h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             You're already up and running! Let's explore what you can do with the web interface.
           </p>
         </div>
@@ -213,13 +212,13 @@ Please analyze the following master bundle and suggest appropriate bundles:
                     </AlertDescription>
                   </Alert>
 
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-blue-900 mb-2">What is cntx-ui?</h4>
-                    <p className="text-sm text-blue-800 mb-3">
-                      cntx-ui organizes your codebase into focused bundles for AI development. 
+                  <div className="bg-accent/50 p-4 rounded-lg border">
+                    <h4 className="font-medium text-foreground mb-2">What is cntx-ui?</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      cntx-ui organizes your codebase into focused bundles for AI development.
                       Create meaningful file collections, copy them to AI tools, or use advanced MCP integration for seamless workflows.
                     </p>
-                    <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
+                    <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
                       <div>• Bundle files by purpose or feature</div>
                       <div>• Hide irrelevant files from AI context</div>
                       <div>• Copy bundles to any AI tool</div>
@@ -228,22 +227,22 @@ Please analyze the following master bundle and suggest appropriate bundles:
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4">
-                    <Card className="border-blue-200">
+                    <Card className="border-border">
                       <CardContent className="pt-6">
-                        <Monitor className="w-8 h-8 text-blue-600 mb-3" />
+                        <Monitor className="w-8 h-8 text-primary mb-3" />
                         <h3 className="font-medium mb-2">Core Experience</h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Organize bundles in the web interface, copy XML to Claude, ChatGPT, or any AI tool.
                         </p>
                         <Badge variant="outline" className="mt-2">Works everywhere</Badge>
                       </CardContent>
                     </Card>
 
-                    <Card className="border-purple-200">
+                    <Card className="border-border">
                       <CardContent className="pt-6">
-                        <Zap className="w-8 h-8 text-purple-600 mb-3" />
+                        <Zap className="w-8 h-8 text-primary mb-3" />
                         <h3 className="font-medium mb-2">Enhanced Experience</h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Optional MCP server integration for seamless access in Claude Desktop and other MCP clients.
                         </p>
                         <Badge variant="outline" className="mt-2">Progressive enhancement</Badge>
@@ -272,12 +271,12 @@ Please analyze the following master bundle and suggest appropriate bundles:
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
-                    <p className="text-gray-600 mb-4">
-                      cntx-ui starts with a "master" bundle containing all your files. Let's explore the basics 
+                    <p className="text-muted-foreground mb-4">
+                      cntx-ui starts with a "master" bundle containing all your files. Let's explore the basics
                       and learn how to create focused bundles for better AI assistance.
                     </p>
 
-                    <Alert className="border-blue-200 bg-blue-50">
+                    <Alert className="border-border bg-accent/50">
                       <FolderOpen className="w-4 h-4" />
                       <AlertDescription>
                         <strong>✅ You're ready to go!</strong> cntx-ui has already created a master bundle with all your project files.
@@ -286,9 +285,9 @@ Please analyze the following master bundle and suggest appropriate bundles:
                     </Alert>
                   </div>
 
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-blue-900 mb-3">Here's the workflow:</h4>
-                    <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                  <div className="bg-accent/50 p-4 rounded-lg border">
+                    <h4 className="font-medium text-foreground mb-3">Here's the workflow:</h4>
+                    <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
                       <li><strong>Copy the AI analysis prompt</strong> (button below)</li>
                       <li><strong>Go to Bundles tab</strong> → Copy the "master" bundle XML</li>
                       <li><strong>Open Claude/ChatGPT</strong> → Paste the prompt</li>
@@ -301,14 +300,14 @@ Please analyze the following master bundle and suggest appropriate bundles:
                   <div>
                     <h4 className="font-medium mb-2">Step 1: Copy AI Prompt & Master Bundle</h4>
                     <div className="space-y-3">
-                      <div className="bg-slate-900 rounded-lg p-4">
+                      <div className="bg-card border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-green-400 text-sm">🤖 Smart Bundle Analysis Prompt</span>
+                          <span className="text-primary text-sm">🤖 Smart Bundle Analysis Prompt</span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={copyAiPrompt}
-                            className="text-gray-400 hover:text-white"
+                            className="text-muted-foreground hover:text-foreground"
                           >
                             {aiPromptCopied ? (
                               <>
@@ -323,20 +322,20 @@ Please analyze the following master bundle and suggest appropriate bundles:
                             )}
                           </Button>
                         </div>
-                        <div className="text-gray-300 text-sm">
+                        <div className="text-muted-foreground text-sm">
                           Intelligent prompt that guides AI to analyze your code structure
                         </div>
                       </div>
 
-                      <div className="bg-slate-900 rounded-lg p-4">
+                      <div className="bg-card border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-blue-400 text-sm">📦 Master Bundle XML</span>
+                          <span className="text-primary text-sm">📦 Master Bundle XML</span>
                           <div className="flex gap-2">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={copyMasterBundle}
-                              className="text-gray-400 hover:text-white"
+                              className="text-muted-foreground hover:text-foreground"
                             >
                               {masterBundleCopied ? (
                                 <>
@@ -354,23 +353,23 @@ Please analyze the following master bundle and suggest appropriate bundles:
                               variant="ghost"
                               size="sm"
                               onClick={downloadMasterBundle}
-                              className="text-gray-400 hover:text-white"
+                              className="text-muted-foreground hover:text-foreground"
                             >
                               <Download className="w-4 h-4 mr-1" />
                               Download
                             </Button>
                           </div>
                         </div>
-                        <div className="text-gray-300 text-sm">
+                        <div className="text-muted-foreground text-sm">
                           Your complete codebase bundle for AI analysis
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                    <h4 className="font-medium text-purple-900 mb-2">🚀 Complete AI Workflow:</h4>
-                    <ol className="text-sm text-purple-800 space-y-1 list-decimal list-inside">
+                  <div className="bg-accent/50 p-4 rounded-lg border">
+                    <h4 className="font-medium text-foreground mb-2">🚀 Complete AI Workflow:</h4>
+                    <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
                       <li><strong>Copy the prompt above</strong> → Paste into Claude/ChatGPT</li>
                       <li><strong>Copy/download master bundle</strong> → Add to your AI conversation</li>
                       <li><strong>AI analyzes your code</strong> → Returns perfect bundle configuration</li>
@@ -382,7 +381,7 @@ Please analyze the following master bundle and suggest appropriate bundles:
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <h4 className="font-medium">What AI Analyzes:</h4>
-                      <div className="text-sm space-y-1">
+                      <div className="text-sm space-y-1 text-muted-foreground">
                         <div>🗂️ <strong>File organization patterns</strong></div>
                         <div>🔗 <strong>Import/dependency relationships</strong></div>
                         <div>⚙️ <strong>Technology stack detection</strong></div>
@@ -392,7 +391,7 @@ Please analyze the following master bundle and suggest appropriate bundles:
 
                     <div className="space-y-3">
                       <h4 className="font-medium">AI Suggests Bundles Like:</h4>
-                      <div className="text-sm space-y-1">
+                      <div className="text-sm space-y-1 text-muted-foreground">
                         <div>🎨 <strong>frontend</strong> - Components, pages, styles</div>
                         <div>🔌 <strong>api</strong> - Routes, controllers, models</div>
                         <div>🧪 <strong>tests</strong> - All test files</div>
@@ -430,14 +429,14 @@ Please analyze the following master bundle and suggest appropriate bundles:
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
-                    <p className="text-gray-600 mb-4">
+                    <p className="text-muted-foreground mb-4">
                       Whether you used AI suggestions or want to create bundles manually,
                       here's how to manage your bundle collection.
                     </p>
 
-                    <div className="bg-green-50 p-4 rounded-lg mb-4">
-                      <h4 className="font-medium text-green-900 mb-2">If you used AI analysis:</h4>
-                      <ol className="text-sm text-green-800 space-y-1 list-decimal list-inside">
+                    <div className="bg-accent/50 p-4 rounded-lg border mb-4">
+                      <h4 className="font-medium text-foreground mb-2">If you used AI analysis:</h4>
+                      <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
                         <li>Go to the <strong>Config</strong> tab above</li>
                         <li>Scroll to <strong>"Paste Bundle Configuration"</strong></li>
                         <li>Paste the AI-generated JSON</li>
@@ -446,13 +445,13 @@ Please analyze the following master bundle and suggest appropriate bundles:
                       </ol>
                     </div>
 
-                    <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                      <h4 className="font-medium text-blue-900 mb-2">To create bundles manually:</h4>
-                      <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                    <div className="bg-accent/50 p-4 rounded-lg border mb-4">
+                      <h4 className="font-medium text-foreground mb-2">To create bundles manually:</h4>
+                      <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
                         <li>Go to the <strong>Config</strong> tab above</li>
                         <li>Click <strong>"Add New Bundle"</strong> at the bottom</li>
                         <li>Name it something meaningful (e.g., "frontend", "api", "core")</li>
-                        <li>Add patterns like <code className="bg-blue-100 px-1 rounded">src/components/**/*</code></li>
+                        <li>Add patterns like <code className="bg-muted px-1 rounded">src/components/**/*</code></li>
                         <li>Click <strong>"Create Bundle"</strong></li>
                       </ol>
                     </div>
@@ -469,17 +468,17 @@ Please analyze the following master bundle and suggest appropriate bundles:
                   <div className="space-y-3">
                     <h4 className="font-medium">Popular Manual Bundle Examples:</h4>
                     <div className="grid gap-3">
-                      <div className="bg-gray-50 p-3 rounded-md">
+                      <div className="bg-muted/50 p-3 rounded-md border">
                         <div className="font-medium text-sm">Frontend Bundle</div>
-                        <code className="text-xs text-gray-600">src/components/**/* • src/pages/**/* • *.css</code>
+                        <code className="text-xs text-muted-foreground">src/components/**/* • src/pages/**/* • *.css</code>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-md">
+                      <div className="bg-muted/50 p-3 rounded-md border">
                         <div className="font-medium text-sm">API Bundle</div>
-                        <code className="text-xs text-gray-600">src/api/**/* • src/routes/**/* • src/models/**/*</code>
+                        <code className="text-xs text-muted-foreground">src/api/**/* • src/routes/**/* • src/models/**/*</code>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-md">
+                      <div className="bg-muted/50 p-3 rounded-md border">
                         <div className="font-medium text-sm">Tests Bundle</div>
-                        <code className="text-xs text-gray-600">**/*.test.* • **/*.spec.* • __tests__/**/*</code>
+                        <code className="text-xs text-muted-foreground">**/*.test.* • **/*.spec.* • __tests__/**/*</code>
                       </div>
                     </div>
                   </div>
@@ -505,16 +504,16 @@ Please analyze the following master bundle and suggest appropriate bundles:
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
-                    <p className="text-gray-600 mb-4">
+                    <p className="text-muted-foreground mb-4">
                       Now let's make your bundles perfect for AI assistants by controlling what they see.
                     </p>
 
                     <div className="grid md:grid-cols-2 gap-4">
-                      <Card className="border-purple-200">
+                      <Card className="border-border">
                         <CardContent className="pt-6">
-                          <Eye className="w-8 h-8 text-purple-600 mb-3" />
+                          <Eye className="w-8 h-8 text-primary mb-3" />
                           <h3 className="font-medium mb-2">Hidden Files Tab</h3>
-                          <div className="text-sm text-gray-600 space-y-1">
+                          <div className="text-sm text-muted-foreground space-y-1">
                             <div>• Hide debug files from AI context</div>
                             <div>• Remove temp/generated files</div>
                             <div>• Create clean, focused bundles</div>
@@ -522,11 +521,11 @@ Please analyze the following master bundle and suggest appropriate bundles:
                         </CardContent>
                       </Card>
 
-                      <Card className="border-green-200">
+                      <Card className="border-border">
                         <CardContent className="pt-6">
-                          <Sparkles className="w-8 h-8 text-green-600 mb-3" />
+                          <Sparkles className="w-8 h-8 text-primary mb-3" />
                           <h3 className="font-medium mb-2">Cursor Rules Tab</h3>
-                          <div className="text-sm text-gray-600 space-y-1">
+                          <div className="text-sm text-muted-foreground space-y-1">
                             <div>• Set coding standards</div>
                             <div>• Define project context</div>
                             <div>• Guide AI assistant behavior</div>
@@ -536,9 +535,9 @@ Please analyze the following master bundle and suggest appropriate bundles:
                     </div>
                   </div>
 
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-green-900 mb-2">Try this workflow:</h4>
-                    <ol className="text-sm text-green-800 space-y-1 list-decimal list-inside">
+                  <div className="bg-accent/50 p-4 rounded-lg border">
+                    <h4 className="font-medium text-foreground mb-2">Try this workflow:</h4>
+                    <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
                       <li>Go to <strong>Hidden Files</strong> tab</li>
                       <li>Search for "debug" or "test" files</li>
                       <li>Hide them from your main bundles</li>
@@ -577,9 +576,9 @@ Please analyze the following master bundle and suggest appropriate bundles:
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-blue-900 mb-2">🤖 Using with AI Assistants</h4>
-                      <div className="text-sm text-blue-800 space-y-1">
+                    <div className="bg-accent/50 p-4 rounded-lg border">
+                      <h4 className="font-medium text-foreground mb-2">🤖 Using with AI Assistants</h4>
+                      <div className="text-sm text-muted-foreground space-y-1">
                         <div>1. Create a focused bundle for your current task</div>
                         <div>2. Copy the XML from the <strong>Bundles</strong> tab</div>
                         <div>3. Paste into Claude, ChatGPT, or other AI tools</div>
@@ -587,9 +586,9 @@ Please analyze the following master bundle and suggest appropriate bundles:
                       </div>
                     </div>
 
-                    <div className="bg-purple-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-purple-900 mb-2">📁 Organizing Large Projects</h4>
-                      <div className="text-sm text-purple-800 space-y-1">
+                    <div className="bg-accent/50 p-4 rounded-lg border">
+                      <h4 className="font-medium text-foreground mb-2">📁 Organizing Large Projects</h4>
+                      <div className="text-sm text-muted-foreground space-y-1">
                         <div>1. Create bundles by feature or team responsibility</div>
                         <div>2. Use hidden files to exclude work-in-progress code</div>
                         <div>3. Monitor bundle sizes in the web interface</div>
@@ -597,9 +596,9 @@ Please analyze the following master bundle and suggest appropriate bundles:
                       </div>
                     </div>
 
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-green-900 mb-2">⚡ Advanced Tips</h4>
-                      <div className="text-sm text-green-800 space-y-1">
+                    <div className="bg-accent/50 p-4 rounded-lg border">
+                      <h4 className="font-medium text-foreground mb-2">⚡ Advanced Tips</h4>
+                      <div className="text-sm text-muted-foreground space-y-1">
                         <div>• Bundle-specific hiding: Hide files from specific bundles only</div>
                         <div>• Pattern testing: Use the pattern tester in Config tab</div>
                         <div>• Real-time updates: Changes appear immediately</div>
@@ -608,9 +607,9 @@ Please analyze the following master bundle and suggest appropriate bundles:
                     </div>
                   </div>
 
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                    <h4 className="font-medium text-yellow-900 mb-2">🎯 Quick Start Checklist</h4>
-                    <div className="text-sm text-yellow-800 space-y-1">
+                  <div className="bg-accent/50 p-4 rounded-lg border">
+                    <h4 className="font-medium text-foreground mb-2">🎯 Quick Start Checklist</h4>
+                    <div className="text-sm text-muted-foreground space-y-1">
                       <div>✅ Create 2-3 focused bundles</div>
                       <div>✅ Hide debug/temp files</div>
                       <div>✅ Set up cursor rules</div>
@@ -620,7 +619,7 @@ Please analyze the following master bundle and suggest appropriate bundles:
 
                   <div className="flex justify-between">
                     <Button variant="outline" onClick={() => setCurrentStep(3)}>Previous</Button>
-                    <Button onClick={() => markStepComplete('workflows')} className="bg-green-600 hover:bg-green-700">
+                    <Button onClick={() => markStepComplete('workflows')} className="bg-primary hover:bg-primary/90">
                       Get Started! <ExternalLink className="w-4 h-4 ml-1" />
                     </Button>
                   </div>
@@ -637,7 +636,7 @@ Please analyze the following master bundle and suggest appropriate bundles:
                 <div className="grid md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <h4 className="font-medium mb-2">Web Interface Tabs</h4>
-                    <ul className="space-y-1 text-gray-600">
+                    <ul className="space-y-1 text-muted-foreground">
                       <li><strong>Bundles</strong> - View and copy bundle content</li>
                       <li><strong>Files</strong> - Browse your project files</li>
                       <li><strong>Config</strong> - Create and edit bundles</li>
@@ -647,7 +646,7 @@ Please analyze the following master bundle and suggest appropriate bundles:
                   </div>
                   <div>
                     <h4 className="font-medium mb-2">Key Features</h4>
-                    <ul className="space-y-1 text-gray-600">
+                    <ul className="space-y-1 text-muted-foreground">
                       <li>Real-time file watching and updates</li>
                       <li>Bundle-specific file hiding</li>
                       <li>Pattern testing and validation</li>

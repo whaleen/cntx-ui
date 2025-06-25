@@ -13,6 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent } from './components/ui/card'
 import { Button } from './components/ui/button'
 import { Toaster } from 'sonner'
 import { X, HelpCircle, Sparkles, EyeOff } from 'lucide-react'
+import { ThemeToggle } from './components/theme-toggle'
 
 const queryClient = new QueryClient()
 
@@ -55,7 +56,8 @@ function App() {
       <div className="min-h-screen bg-background text-foreground">
         <header className="border-b">
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold">cntx-ui</h1>
+            <h1 className="text-lg font-thin">cntx-ui</h1>
+            <ThemeToggle />
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
@@ -111,7 +113,7 @@ function App() {
                         <BundleList />
                       </CardContent>
                     </Card>
-                    
+
                     <Card>
                       <CardHeader>
                         <CardTitle>Project Files</CardTitle>
