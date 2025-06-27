@@ -6,7 +6,7 @@ import { Input } from './ui/input'
 import { Badge } from './ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { Plus, Trash2, Eye, CheckCircle2, Circle } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 interface BundleConfig {
   bundles: Record<string, string[]>
@@ -219,13 +219,14 @@ export function EnhancedBundleConfig() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between text-sm font-medium">
           Bundle Configuration
           <Button
             onClick={() => setShowCreateBundle(true)}
             size="sm"
+            className="h-7 text-xs"
           >
-            <Plus className="w-4 h-4 mr-1" />
+            <Plus className="w-3 h-3 mr-1" />
             Create Bundle
           </Button>
         </CardTitle>
@@ -233,9 +234,9 @@ export function EnhancedBundleConfig() {
       <CardContent className="space-y-6">
         {/* Create Bundle Modal */}
         {showCreateBundle && (
-          <Card className="border-2 border-blue-200 bg-blue-50/50">
+          <Card className="border-2 border-[color:var(--color-info)]/20 bg-[color:var(--color-info)]/5">
             <CardHeader>
-              <CardTitle className="text-lg">Create New Bundle</CardTitle>
+              <CardTitle className="text-sm font-medium">Create New Bundle</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs value={createBundleStep} onValueChange={(value) => setCreateBundleStep(value as any)}>
@@ -247,7 +248,7 @@ export function EnhancedBundleConfig() {
 
                 <TabsContent value="name" className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium">Bundle Name</label>
+                    <label className="text-xs font-medium">Bundle Name</label>
                     <Input
                       placeholder="e.g., frontend, api, components"
                       value={newBundleName}
@@ -257,6 +258,8 @@ export function EnhancedBundleConfig() {
                   <Button 
                     onClick={() => setCreateBundleStep('files')}
                     disabled={!newBundleName.trim()}
+                    size="sm"
+                    className="h-7 text-xs"
                   >
                     Next: Select Files
                   </Button>
@@ -265,7 +268,7 @@ export function EnhancedBundleConfig() {
                 <TabsContent value="files" className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <label className="text-sm font-medium">Select Files for "{newBundleName}"</label>
+                      <label className="text-xs font-medium">Select Files for "{newBundleName}"</label>
                       <Badge variant="outline">{selectedFiles.size} selected</Badge>
                     </div>
                     
@@ -277,15 +280,15 @@ export function EnhancedBundleConfig() {
                       {projectFiles?.map((file, index) => (
                         <div
                           key={file.path}
-                          className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer select-none"
+                          className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer select-none"
                           onClick={(e) => handleFileSelection(file.path, index, e)}
                         >
                           {selectedFiles.has(file.path) ? (
-                            <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                            <CheckCircle2 className="w-4 h-4 text-[color:var(--color-info)]" />
                           ) : (
-                            <Circle className="w-4 h-4 text-gray-400" />
+                            <Circle className="w-4 h-4 text-muted-foreground" />
                           )}
-                          <span className="text-sm font-mono flex-1">{file.path}</span>
+                          <span className="text-xs font-mono flex-1">{file.path}</span>
                           <Badge variant="outline" className="text-xs">{file.type}</Badge>
                         </div>
                       ))}
@@ -293,12 +296,14 @@ export function EnhancedBundleConfig() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setCreateBundleStep('name')}>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCreateBundleStep('name')}>
                       Back
                     </Button>
                     <Button 
                       onClick={() => setCreateBundleStep('patterns')}
                       disabled={selectedFiles.size === 0}
+                      size="sm"
+                      className="h-7 text-xs"
                     >
                       Next: Review Patterns
                     </Button>
@@ -307,7 +312,7 @@ export function EnhancedBundleConfig() {
 
                 <TabsContent value="patterns" className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium">Generated Patterns</label>
+                    <label className="text-xs font-medium">Generated Patterns</label>
                     <div className="space-y-2 mt-2">
                       {generatedPatterns.map((pattern, index) => (
                         <div key={index} className="flex gap-2">
@@ -344,13 +349,13 @@ export function EnhancedBundleConfig() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setCreateBundleStep('files')}>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCreateBundleStep('files')}>
                       Back
                     </Button>
-                    <Button variant="outline" onClick={() => setShowCreateBundle(false)}>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowCreateBundle(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={handleCreateBundle} disabled={saveMutation.isPending}>
+                    <Button onClick={handleCreateBundle} disabled={saveMutation.isPending} size="sm" className="h-7 text-xs">
                       Create Bundle
                     </Button>
                   </div>
@@ -365,11 +370,12 @@ export function EnhancedBundleConfig() {
           {config && Object.entries(config.bundles).map(([bundleName, patterns]) => (
             <div key={bundleName} className="border rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium">{bundleName}</h3>
+                <h3 className="text-sm font-medium">{bundleName}</h3>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-7 text-xs"
                     onClick={() => setEditingBundle(editingBundle === bundleName ? null : bundleName)}
                   >
                     {editingBundle === bundleName ? 'Done' : 'Edit'}
@@ -378,9 +384,10 @@ export function EnhancedBundleConfig() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-7 text-xs"
                       onClick={() => handleDeleteBundle(bundleName)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3" />
                     </Button>
                   )}
                 </div>
@@ -439,7 +446,7 @@ export function EnhancedBundleConfig() {
         {/* Pattern Tester */}
         <Card>
           <CardHeader>
-            <CardTitle>Test a Pattern</CardTitle>
+            <CardTitle className="text-sm font-medium">Test a Pattern</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
@@ -449,8 +456,8 @@ export function EnhancedBundleConfig() {
                 onChange={(e) => setTestingPattern(e.target.value)}
                 className="font-mono"
               />
-              <Button onClick={handleTestPattern}>
-                <Eye className="w-4 h-4 mr-1" />
+              <Button onClick={handleTestPattern} size="sm" className="h-7 text-xs">
+                <Eye className="w-3 h-3 mr-1" />
                 Test
               </Button>
             </div>

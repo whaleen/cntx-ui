@@ -18,7 +18,7 @@ import {
   CheckCircle,
   Info,
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 interface FileWithVisibility {
   path: string
@@ -256,8 +256,8 @@ export function HiddenFilesManager() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-semibold">File Visibility & Ignore Management</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-sm font-medium">File Visibility & Ignore Management</h2>
+          <p className="text-xs text-muted-foreground font-normal">
             Control which files appear in bundles and manage ignore patterns
           </p>
         </div>
@@ -287,11 +287,11 @@ export function HiddenFilesManager() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Bundle:</label>
+                  <label className="text-xs font-medium">Bundle:</label>
                   <select
                     value={selectedBundle || ''}
                     onChange={(e) => setSelectedBundle(e.target.value || null)}
-                    className="px-3 py-2 border rounded-md text-sm"
+                    className="px-2 py-1 border rounded-md text-xs"
                   >
                     <option value="">All Bundles (Global)</option>
                     {Object.keys(bundleStats).map(bundleName => (
@@ -324,17 +324,17 @@ export function HiddenFilesManager() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className={`h-7 text-xs ${showHidden ? 'bg-[color:var(--color-info)]/5 border-[color:var(--color-info)]/20' : ''}`}
                     onClick={() => setShowHidden(!showHidden)}
-                    className={showHidden ? 'bg-blue-50 border-blue-200' : ''}
                   >
-                    {showHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    {showHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                     {showHidden ? 'Hide Hidden' : 'Show Hidden'}
                   </Button>
 
                   <select
                     value={filterBy}
                     onChange={(e) => setFilterBy(e.target.value)}
-                    className="px-3 py-2 border rounded-md text-sm"
+                    className="px-2 py-1 border rounded-md text-xs"
                   >
                     <option value="all">All Files</option>
                     <option value="visible">Visible Only</option>
@@ -345,22 +345,23 @@ export function HiddenFilesManager() {
 
               {/* Bulk Actions */}
               {selectedFiles.length > 0 && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-md border border-blue-200 mt-4">
-                  <Info className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm text-blue-800">
+                <div className="flex items-center gap-2 p-3 bg-[color:var(--color-info)]/5 rounded-md border border-[color:var(--color-info)]/20 mt-4">
+                  <Info className="w-4 h-4 text-[color:var(--color-info)]" />
+                  <span className="text-xs text-[color:var(--color-info)] font-normal">
                     {selectedFiles.length} files selected
                   </span>
                   <div className="flex gap-2 ml-auto">
-                    <Button size="sm" onClick={() => handleBulkToggle(false)}>
-                      <Eye className="w-4 h-4 mr-1" />
+                    <Button size="sm" className="h-7 text-xs" onClick={() => handleBulkToggle(false)}>
+                      <Eye className="w-3 h-3 mr-1" />
                       Show All
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleBulkToggle(true)}>
-                      <EyeOff className="w-4 h-4 mr-1" />
+                    <Button size="sm" className="h-7 text-xs" variant="outline" onClick={() => handleBulkToggle(true)}>
+                      <EyeOff className="w-3 h-3 mr-1" />
                       Hide All
                     </Button>
                     <Button
                       size="sm"
+                      className="h-7 text-xs"
                       variant="ghost"
                       onClick={() => setSelectedFiles([])}
                     >
@@ -382,7 +383,7 @@ export function HiddenFilesManager() {
                   {filteredFiles.map((file) => (
                     <div
                       key={file.path}
-                      className={`flex items-center gap-3 p-2 rounded-md border transition-colors ${!file.visible ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'
+                      className={`flex items-center gap-3 p-2 rounded-md border transition-colors ${!file.visible ? 'opacity-60 bg-muted/50' : 'hover:bg-muted/50'
                         }`}
                     >
                       <input
@@ -401,7 +402,7 @@ export function HiddenFilesManager() {
                       <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
 
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono text-sm truncate">{file.path}</div>
+                        <div className="font-mono text-xs truncate">{file.path}</div>
                         <div className="flex items-center gap-2 mt-1">
                           {file.inBundles.map(bundle => (
                             <Badge key={bundle} variant="outline" className="text-xs">
@@ -419,7 +420,7 @@ export function HiddenFilesManager() {
                             </Badge>
                           )}
                           {file.matchesIgnorePattern && (
-                            <Badge variant="outline" className="text-xs text-gray-500">
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
                               Ignored
                             </Badge>
                           )}
@@ -439,12 +440,12 @@ export function HiddenFilesManager() {
                       >
                         {file.visible ? (
                           <>
-                            <EyeOff className="w-4 h-4 mr-1" />
+                            <EyeOff className="w-3 h-3 mr-1" />
                             Hide
                           </>
                         ) : (
                           <>
-                            <Eye className="w-4 h-4 mr-1" />
+                            <Eye className="w-3 h-3 mr-1" />
                             Show
                           </>
                         )}
@@ -465,7 +466,7 @@ export function HiddenFilesManager() {
           {/* Reset Options */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
                 <RotateCcw className="w-4 h-4" />
                 Reset Options
               </CardTitle>
@@ -475,6 +476,7 @@ export function HiddenFilesManager() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs"
                   onClick={() => resetMutation.mutate({ scope: 'global' })}
                   disabled={resetMutation.isPending}
                 >
@@ -497,7 +499,7 @@ export function HiddenFilesManager() {
                   size="sm"
                   onClick={() => resetMutation.mutate({ scope: 'all' })}
                   disabled={resetMutation.isPending}
-                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  className="text-destructive border-destructive/20 hover:bg-destructive/5"
                 >
                   Reset All Hidden Files
                 </Button>
@@ -511,7 +513,7 @@ export function HiddenFilesManager() {
           {/* Add New Pattern */}
           <Card>
             <CardHeader>
-              <CardTitle>Add Ignore Pattern</CardTitle>
+              <CardTitle className="text-sm font-medium">Add Ignore Pattern</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -525,8 +527,10 @@ export function HiddenFilesManager() {
                 <Button
                   onClick={handleAddPattern}
                   disabled={!newPattern.trim() || patternMutation.isPending}
+                  size="sm"
+                  className="h-7 text-xs"
                 >
-                  <Plus className="w-4 h-4 mr-1" />
+                  <Plus className="w-3 h-3 mr-1" />
                   Add Pattern
                 </Button>
               </div>
@@ -540,7 +544,7 @@ export function HiddenFilesManager() {
           {/* Existing Patterns */}
           <Card>
             <CardHeader>
-              <CardTitle>Current Ignore Patterns</CardTitle>
+              <CardTitle className="text-sm font-medium">Current Ignore Patterns</CardTitle>
             </CardHeader>
             <CardContent>
               {patternsLoading ? (
@@ -550,11 +554,11 @@ export function HiddenFilesManager() {
                   {allPatterns.map((item, index) => (
                     <div
                       key={index}
-                      className={`flex items-center gap-3 p-3 rounded-md border ${!item.active ? 'opacity-60 bg-gray-50' : ''
+                      className={`flex items-center gap-3 p-3 rounded-md border ${!item.active ? 'opacity-60 bg-muted/50' : ''
                         }`}
                     >
                       <div className="flex-1">
-                        <div className="font-mono text-sm">{item.pattern}</div>
+                        <div className="font-mono text-xs">{item.pattern}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge
                             variant={item.source === 'system' ? 'secondary' :
@@ -565,12 +569,12 @@ export function HiddenFilesManager() {
                               item.source === 'user' ? 'User Added' : 'File Pattern'}
                           </Badge>
                           {item.active ? (
-                            <Badge variant="outline" className="text-xs text-green-700">
+                            <Badge variant="outline" className="text-xs text-[color:var(--color-success)]">
                               <CheckCircle className="w-3 h-3 mr-1" />
                               Active
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-xs text-gray-500">
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
                               <AlertCircle className="w-3 h-3 mr-1" />
                               Disabled
                             </Badge>
@@ -617,7 +621,7 @@ export function HiddenFilesManager() {
                 <Card key={bundleName}>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>{bundleName}</CardTitle>
+                      <CardTitle className="text-sm font-medium">{bundleName}</CardTitle>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">
                           {stats.visible} / {stats.total} visible
@@ -633,9 +637,9 @@ export function HiddenFilesManager() {
                   <CardContent>
                     <div className="space-y-3">
                       <div className="flex items-center gap-4">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div className="flex-1 bg-border rounded-full h-2">
                           <div
-                            className="bg-blue-600 h-2 rounded-full"
+                            className="bg-[color:var(--color-info)] h-2 rounded-full"
                             style={{
                               width: `${stats.total > 0 ? (stats.visible / stats.total) * 100 : 0}%`
                             }}
@@ -644,9 +648,10 @@ export function HiddenFilesManager() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="h-7 text-xs"
                           onClick={() => setSelectedBundle(bundleName)}
                         >
-                          <Settings className="w-4 h-4 mr-1" />
+                          <Settings className="w-3 h-3 mr-1" />
                           Manage Files
                         </Button>
                       </div>

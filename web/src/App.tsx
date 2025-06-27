@@ -1,4 +1,4 @@
-// web/src/App.tsx - Properly Fixed Layout Version
+// web/src/App.tsx - Sidebar Navigation with shadcn/ui
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BundleList } from './components/BundleList'
@@ -6,44 +6,107 @@ import { FileTree } from './components/FileTree'
 import { EnhancedBundleConfig } from './components/EnhancedBundleConfig'
 import { AIRulesManager } from './components/AIRulesManager'
 import { HiddenFilesManager } from './components/HiddenFilesManager'
-import { SetupBanner, SetupChecklist, UsageGuidance, WorkflowInstructions, QuickCliReference } from './components/SetupComponents'
+import { SemanticChunks } from './components/SemanticChunks'
+import { SetupChecklist, UsageGuidance, WorkflowInstructions, QuickCliReference, SemanticFeaturesGuide, MCPFeaturesGuide } from './components/SetupComponents'
 import SetupScreen from './components/SetupScreen'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/card'
 import { Button } from './components/ui/button'
-import { Toaster } from 'sonner'
-import { X, HelpCircle, Sparkles, EyeOff } from 'lucide-react'
+import {
+  Layers,
+  Sparkles,
+  CheckCircle,
+  HelpCircle,
+  Rocket,
+  EyeOff
+} from 'lucide-react'
 import { ThemeToggle } from './components/theme-toggle'
 
 const queryClient = new QueryClient()
 
+const navigationItems = [
+  {
+    id: 'bundles',
+    label: 'Bundles & Files',
+    icon: Layers
+  },
+  {
+    id: 'semantic',
+    label: 'Semantic Chunks',
+    icon: Sparkles
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: EyeOff
+  },
+  {
+    id: 'ai-rules',
+    label: 'AI Rules',
+    icon: Sparkles
+  },
+  {
+    id: 'setup',
+    label: 'Setup Status',
+    icon: CheckCircle
+  },
+  {
+    id: 'help',
+    label: 'Help',
+    icon: HelpCircle
+  },
+  {
+    id: 'setup-guide',
+    label: 'Setup Guide',
+    icon: Rocket
+  }
+]
+
 function App() {
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
-  const [showSetupScreen, setShowSetupScreen] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
+  const [webStatus, setWebStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const [mcpStatus, setMcpStatus] = useState<'unknown' | 'running' | 'stopped'>('unknown')
+  const [activeSection, setActiveSection] = useState('bundles')
+  const [showFullSetupGuide, setShowFullSetupGuide] = useState(false)
 
   useEffect(() => {
-    // WebSocket connection for real-time updates
+    // Web server status via WebSocket
     const ws = new WebSocket('ws://localhost:3333')
+    ws.onopen = () => setWebStatus('connected')
+    ws.onclose = () => setWebStatus('disconnected')
 
-    ws.onopen = () => setConnectionStatus('connected')
-    ws.onclose = () => setConnectionStatus('disconnected')
+    // Check MCP server status
+    const checkMcpStatus = async () => {
+      try {
+        const response = await fetch('/api/mcp-status')
+        if (response.ok) {
+          const { running } = await response.json()
+          setMcpStatus(running ? 'running' : 'stopped')
+        } else {
+          setMcpStatus('stopped')
+        }
+      } catch {
+        setMcpStatus('stopped')
+      }
+    }
 
-    return () => ws.close()
+    checkMcpStatus()
+    const mcpInterval = setInterval(checkMcpStatus, 10000) // Check every 10s
+
+    return () => {
+      ws.close()
+      clearInterval(mcpInterval)
+    }
   }, [])
 
-  // If setup screen is open, show it full screen
-  if (showSetupScreen) {
+  if (showFullSetupGuide) {
     return (
       <QueryClientProvider client={queryClient}>
         <div className="relative">
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => setShowSetupScreen(false)}
+            onClick={() => setShowFullSetupGuide(false)}
             className="absolute top-4 right-4 z-10"
           >
-            <X className="w-4 h-4" />
+            ← Back to Dashboard
           </Button>
           <SetupScreen />
         </div>
@@ -51,169 +114,175 @@ function App() {
     )
   }
 
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'bundles':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-medium tracking-tight">Bundles & Files</h1>
+              <p className="text-xs text-muted-foreground font-normal">Manage your file bundles and project structure</p>
+            </div>
+            <BundleList />
+            <Card>
+              <CardHeader>
+                <CardTitle>Project Files</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FileTree />
+              </CardContent>
+            </Card>
+          </div>
+        )
+      case 'semantic':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-medium tracking-tight">Semantic Chunks</h1>
+              <p className="text-xs text-muted-foreground font-normal">AI-powered code organization and intelligent bundles</p>
+            </div>
+            <SemanticChunks />
+          </div>
+        )
+      case 'settings':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-medium tracking-tight">Settings</h1>
+              <p className="text-xs text-muted-foreground font-normal">Configure file visibility and bundle patterns</p>
+            </div>
+            <HiddenFilesManager />
+            <EnhancedBundleConfig />
+          </div>
+        )
+      case 'ai-rules':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-medium tracking-tight">AI Rules</h1>
+              <p className="text-xs text-muted-foreground font-normal">Configure AI context and project guidelines</p>
+            </div>
+            <AIRulesManager />
+          </div>
+        )
+      case 'setup':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-medium tracking-tight">Setup Status</h1>
+              <p className="text-xs text-muted-foreground font-normal">Project configuration checklist</p>
+            </div>
+            <SetupChecklist onOpenFullSetup={() => setShowFullSetupGuide(true)} />
+          </div>
+        )
+      case 'help':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-medium tracking-tight">Help & Documentation</h1>
+              <p className="text-xs text-muted-foreground font-normal">Usage guides and workflow instructions</p>
+            </div>
+            <UsageGuidance />
+            <SemanticFeaturesGuide />
+            <MCPFeaturesGuide />
+            <WorkflowInstructions />
+            <QuickCliReference />
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background text-foreground">
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 className="text-lg font-thin">cntx-ui</h1>
-            <ThemeToggle />
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowHelp(!showHelp)}
-              >
-                <HelpCircle className="w-4 h-4 mr-1" />
-                Help
-              </Button>
+      <div className="h-screen bg-background overflow-hidden">
+        <div className="flex h-full">
+          {/* Sidebar */}
+          <div className="w-64 border-r bg-muted/10 flex flex-col h-full">
+            {/* Header */}
+            <div className="p-4 border-b flex-shrink-0">
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' :
-                  connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
-                  }`} />
-                <span className="text-sm text-muted-foreground">
-                  {connectionStatus === 'connected' ? 'Connected • Watching files' :
-                    connectionStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
-                </span>
+                <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
+                  <Layers className="w-3 h-3 text-primary-foreground" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-medium">cntx-ui</h2>
+                  <p className="text-xs text-muted-foreground font-normal">Context Manager</p>
+                </div>
               </div>
             </div>
+
+            {/* Navigation */}
+            <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
+              {navigationItems.map((item) => {
+                const Icon = item.icon
+                const isActive = activeSection === item.id
+
+                return (
+                  <Button
+                    key={item.id}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className="w-full justify-start h-8 text-xs font-normal"
+                    onClick={() => {
+                      if (item.id === 'setup-guide') {
+                        setShowFullSetupGuide(true)
+                      } else {
+                        setActiveSection(item.id)
+                      }
+                    }}
+                  >
+                    <Icon className="w-3 h-3 mr-2" />
+                    {item.label}
+                  </Button>
+                )
+              })}
+            </nav>
+
           </div>
-        </header>
 
-        <main className="container mx-auto px-4 py-6">
-          {/* Setup Banner - shows for first-time users */}
-          <SetupBanner onStartSetup={() => setShowSetupScreen(true)} />
+          {/* Main Content */}
+          <div className="flex-1 overflow-y-auto pb-12">
+            <main className="p-6 max-w-6xl">
+              {renderContent()}
+            </main>
+          </div>
+        </div>
 
-          {/* Fixed Layout using Flexbox instead of Grid */}
-          <div className="flex flex-col lg:flex-row gap-6">
-            <Toaster position="top-right" />
-
-            {/* Main Content - Flexible width */}
-            <div className="flex-1 min-w-0">
-              <Tabs defaultValue="bundles" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="bundles">Bundles & Files</TabsTrigger>
-                  <TabsTrigger value="settings" className="flex items-center gap-1">
-                    <EyeOff className="w-3 h-3" />
-                    <span>Settings</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="cursor" className="flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    <span>AI Rules</span>
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="bundles">
-                  <div className="space-y-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Bundle Management</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <BundleList />
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Project Files</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <FileTree />
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="settings">
-                  <div className="space-y-6">
-                    <HiddenFilesManager />
-                    <EnhancedBundleConfig />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="cursor">
-                  <AIRulesManager />
-                </TabsContent>
-              </Tabs>
+        {/* Full-width Status Bar */}
+        <div className="fixed bottom-0 left-0 right-0 h-10 bg-card border-t border-border px-4 flex items-center justify-between z-40">
+          <div className="flex items-center gap-6">
+            {/* Web Server Status */}
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${webStatus === 'connected' ? 'bg-[color:var(--color-success)]' :
+                webStatus === 'connecting' ? 'bg-[color:var(--color-warning)]' : 'bg-destructive'
+                }`} />
+              <span className="text-xs font-normal">
+                Web: {webStatus === 'connected' ? 'Live' :
+                  webStatus === 'connecting' ? 'Connecting' : 'Offline'}
+              </span>
             </div>
 
-            {/* Sidebar - Fixed width on large screens */}
-            <div className="w-full lg:w-80 xl:w-96 flex-shrink-0 space-y-6">
-              {/* Setup Status */}
-              <SetupChecklist onOpenFullSetup={() => setShowSetupScreen(true)} />
-
-              {/* Help Panel */}
-              {showHelp && (
-                <div className="space-y-4">
-                  <UsageGuidance />
-                  <WorkflowInstructions />
-                  <QuickCliReference />
-
-                  {/* Hidden Files Quick Info */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <EyeOff className="w-4 h-4" />
-                        File Visibility
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Control which files appear in your bundles without changing ignore patterns.
-                      </p>
-                      <div className="text-xs space-y-1">
-                        <div>• Hide debug/temp files from AI context</div>
-                        <div>• Create focused bundles for specific tasks</div>
-                        <div>• Bundle-specific or global hiding</div>
-                        <div>• Easy restore when needed</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Cursor Rules Quick Info */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4" />
-                        AI Assistant
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Cursor rules help AI assistants understand your project context and coding preferences.
-                      </p>
-                      <div className="text-xs space-y-1">
-                        <div>• Project structure & bundles</div>
-                        <div>• Coding standards & style</div>
-                        <div>• Framework preferences</div>
-                        <div>• Team conventions</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Need More Help?</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowSetupScreen(true)}
-                        className="w-full"
-                      >
-                        Open Setup Guide
-                      </Button>
-                      <div className="text-sm text-muted-foreground">
-                        For detailed setup instructions and troubleshooting.
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+            {/* MCP Server Status */}
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${mcpStatus === 'running' ? 'bg-[color:var(--color-success)]' :
+                mcpStatus === 'stopped' ? 'bg-destructive' : 'bg-muted-foreground'
+                }`} />
+              <span className="text-xs font-normal">
+                MCP: {mcpStatus === 'running' ? 'Running' :
+                  mcpStatus === 'stopped' ? 'Stopped' : 'Unknown'}
+              </span>
             </div>
           </div>
-        </main>
+
+          <div className="flex items-center gap-4">
+            <div className="text-xs text-muted-foreground">
+              cntx-ui v2.0.12
+            </div>
+            <ThemeToggle />
+          </div>
+        </div>
+
       </div>
     </QueryClientProvider>
   )

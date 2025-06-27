@@ -6,7 +6,7 @@ import { Textarea } from './ui/textarea'
 import { Alert, AlertDescription } from './ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { Save, RefreshCw, Copy, Download, Sparkles, FileText, Info } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 // Fetch functions for .cursorrules
 const fetchCursorRules = async (): Promise<string> => {
@@ -122,8 +122,8 @@ export function AIRulesManager() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5" />
+        <CardTitle className="flex items-center gap-2 text-sm font-medium">
+          <Sparkles className="w-4 h-4" />
           AI Rules & Context
         </CardTitle>
       </CardHeader>
@@ -151,8 +151,8 @@ export function AIRulesManager() {
           <TabsContent value="cursor" className="space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="font-medium">Cursor AI Assistant Rules</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-sm font-medium">Cursor AI Assistant Rules</h3>
+                <p className="text-xs text-muted-foreground font-normal">
                   Configure how Cursor's AI understands your project
                 </p>
               </div>
@@ -160,25 +160,28 @@ export function AIRulesManager() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs"
                   onClick={() => handleCopyToClipboard(editingCursorRules, '.cursorrules')}
                 >
-                  <Copy className="w-4 h-4 mr-1" />
+                  <Copy className="w-3 h-3 mr-1" />
                   Copy
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs"
                   onClick={() => handleDownload(editingCursorRules, '.cursorrules')}
                 >
-                  <Download className="w-4 h-4 mr-1" />
+                  <Download className="w-3 h-3 mr-1" />
                   Download
                 </Button>
                 <Button
                   onClick={handleSaveCursorRules}
                   disabled={cursorRulesMutation.isPending}
                   size="sm"
+                  className="h-7 text-xs"
                 >
-                  <Save className="w-4 h-4 mr-1" />
+                  <Save className="w-3 h-3 mr-1" />
                   Save
                 </Button>
               </div>
@@ -202,8 +205,8 @@ export function AIRulesManager() {
           <TabsContent value="claude" className="space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="font-medium">Claude Project Context</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-sm font-medium">Claude Project Context</h3>
+                <p className="text-xs text-muted-foreground font-normal">
                   Markdown file explaining your project structure and guidelines
                 </p>
               </div>
@@ -211,25 +214,28 @@ export function AIRulesManager() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs"
                   onClick={() => handleCopyToClipboard(editingClaudeMd, 'CLAUDE.md')}
                 >
-                  <Copy className="w-4 h-4 mr-1" />
+                  <Copy className="w-3 h-3 mr-1" />
                   Copy
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs"
                   onClick={() => handleDownload(editingClaudeMd, 'CLAUDE.md')}
                 >
-                  <Download className="w-4 h-4 mr-1" />
+                  <Download className="w-3 h-3 mr-1" />
                   Download
                 </Button>
                 <Button
                   onClick={handleSaveClaudeMd}
                   disabled={claudeMdMutation.isPending}
                   size="sm"
+                  className="h-7 text-xs"
                 >
-                  <Save className="w-4 h-4 mr-1" />
+                  <Save className="w-3 h-3 mr-1" />
                   Save
                 </Button>
               </div>

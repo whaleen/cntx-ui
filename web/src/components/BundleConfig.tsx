@@ -8,7 +8,7 @@ import { Textarea } from './ui/textarea'
 import { Trash2, Plus, Save, Eye, AlertTriangle, Settings, X } from 'lucide-react'
 import { useButtonFeedback } from '../hooks/useButtonFeedback'
 import { getButtonIcon, getButtonClassName } from '../utils/buttonHelpers'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 // Extend Window interface for timeout
 declare global {
@@ -531,8 +531,8 @@ export function BundleConfig() {
             </div>
           </div>
 
-          <div className="bg-blue-50 p-3 rounded-md">
-            <div className="text-sm text-blue-800">
+          <div className="bg-[color:var(--color-info)]/5 p-3 rounded-md">
+            <div className="text-sm text-[color:var(--color-info)]">
               <strong>Coming Soon:</strong> These enhancement options will add rich context to your bundles,
               making them more useful for AI agents. Enable features based on your needs vs. bundle size preferences.
             </div>
@@ -547,7 +547,7 @@ export function BundleConfig() {
           const isLarge = stats.size > 10 * 1024 * 1024
 
           return (
-            <Card key={bundleName} className={isLarge ? 'border-yellow-500' : ''}>
+            <Card key={bundleName} className={isLarge ? 'border-[color:var(--color-warning)]' : ''}>
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">

@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { Save, RefreshCw, Copy, Download, Upload, Sparkles, FileText, Info } from 'lucide-react'
 import { useButtonFeedback } from '../hooks/useButtonFeedback'
 import { getButtonIcon, getButtonClassName } from '../utils/buttonHelpers'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 interface CursorRulesTemplates {
   react: string
@@ -176,7 +176,7 @@ export function CursorRulesManager() {
           <Button
             onClick={handleSave}
             disabled={!hasChanges || isLoading('save')}
-            className={`bg-purple-600 hover:bg-purple-700 ${getButtonClassName(getButtonState('save'))}`}
+            className={`bg-[color:var(--color-type-hooks)] hover:bg-[color:var(--color-type-hooks)]/80 ${getButtonClassName(getButtonState('save'))}`}
           >
             {getButtonIcon(getButtonState('save'), <Save className="w-4 h-4" />)}
             <span className="ml-1">Save Rules</span>
@@ -197,7 +197,7 @@ export function CursorRulesManager() {
               </div>
               {currentRules && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-700">.cursorrules file exists</span>
+                  <span className="text-sm text-[color:var(--color-success)]">.cursorrules file exists</span>
                 </div>
               )}
             </div>
@@ -260,7 +260,7 @@ export function CursorRulesManager() {
             </CardHeader>
             <CardContent className="space-y-4">
               {hasChanges && (
-                <Alert className="border-yellow-200 bg-yellow-50">
+                <Alert className="border-[color:var(--color-warning)]/20 bg-[color:var(--color-warning)]/5">
                   <Info className="w-4 h-4" />
                   <AlertDescription>
                     You have unsaved changes. Click "Save Rules" to apply them to your .cursorrules file.
@@ -374,7 +374,7 @@ export function CursorRulesManager() {
 
                   <div>
                     <h4 className="font-medium mb-2">Example Sections</h4>
-                    <div className="bg-gray-50 p-3 rounded text-xs font-mono">
+                    <div className="bg-muted/50 p-3 rounded text-xs font-mono">
                       # Project Context<br />
                       # Development Guidelines<br />
                       # Code Style<br />

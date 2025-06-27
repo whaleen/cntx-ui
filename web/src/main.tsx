@@ -2,7 +2,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Toaster } from 'sonner'
+import { Toaster } from './components/ui/toaster'
 import { ThemeProvider } from './components/theme-provider'
 import './index.css'
 import App from './App'
@@ -19,7 +19,7 @@ createRoot(document.getElementById('root')!).render(
         disableTransitionOnChange
       >
         <App />
-        <Toaster richColors />
+        <Toaster />
       </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,

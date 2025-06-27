@@ -121,11 +121,11 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           )}
           {isExpanded ? (
-            <FolderOpen className="w-4 h-4 text-blue-500" />
+            <FolderOpen className="w-4 h-4 text-[color:var(--color-info)]" />
           ) : (
-            <Folder className="w-4 h-4 text-blue-500" />
+            <Folder className="w-4 h-4 text-[color:var(--color-info)]" />
           )}
-          <span className="text-sm font-medium">{node.name}</span>
+          <span className="text-xs font-normal">{node.name}</span>
           {node.children && (
             <span className="text-xs text-muted-foreground ml-auto">
               {node.children.length} items
@@ -160,16 +160,16 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
       case 'ts':
       case 'jsx':
       case 'tsx':
-        return <File className={`${iconClass} text-yellow-500`} />
+        return <File className={`${iconClass} text-[color:var(--color-warning)]`} />
       case 'json':
-        return <File className={`${iconClass} text-green-500`} />
+        return <File className={`${iconClass} text-[color:var(--color-success)]`} />
       case 'md':
-        return <File className={`${iconClass} text-blue-400`} />
+        return <File className={`${iconClass} text-[color:var(--color-info)]/80`} />
       case 'css':
       case 'scss':
-        return <File className={`${iconClass} text-pink-500`} />
+        return <File className={`${iconClass} text-[color:var(--color-type-styles)]`} />
       case 'html':
-        return <File className={`${iconClass} text-orange-500`} />
+        return <File className={`${iconClass} text-[color:var(--color-type-configuration)]`} />
       default:
         return <File className={`${iconClass} text-muted-foreground`} />
     }
@@ -181,7 +181,7 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
       style={{ paddingLeft: `${indent + 24}px` }}
     >
       {getFileIcon(node.name)}
-      <span className="text-sm font-mono">{node.name}</span>
+      <span className="text-xs font-mono">{node.name}</span>
 
       {node.bundles && node.bundles.length > 0 && (
         <div className="flex gap-1 ml-2">
@@ -189,7 +189,7 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
             <Badge
               key={bundle}
               variant="outline"
-              className="text-xs px-1 py-0"
+              className="text-xs px-1 py-0 h-4"
             >
               {bundle}
             </Badge>
@@ -257,16 +257,16 @@ export function FileTree() {
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={expandAll}>
+        <div className="flex gap-1">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={expandAll}>
             Expand All
           </Button>
-          <Button variant="outline" size="sm" onClick={collapseAll}>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={collapseAll}>
             Collapse All
           </Button>
         </div>
 
-        <div className="text-sm text-muted-foreground">
+        <div className="text-xs text-muted-foreground font-normal">
           {totalFiles} files tracked
         </div>
       </div>
@@ -294,7 +294,7 @@ export function FileTree() {
 
       {/* Bundle Legend */}
       <Card className="p-4">
-        <h3 className="text-sm font-medium mb-2">Bundle Legend</h3>
+        <h3 className="text-xs font-medium mb-2">Bundle Legend</h3>
         <div className="flex flex-wrap gap-2">
           {bundles.map(bundle => (
             <Badge key={bundle.name} variant="outline">

@@ -1,5 +1,8 @@
 {
-  "globalHidden": [],
+  "globalHidden": [
+    "cntx-ui-2.0.3.tgz",
+    "package.json.bak"
+  ],
   "bundleSpecific": {
     "master": [
       "web/components.json"
@@ -10,9 +13,15 @@
       "web/src/components/ui/badge.tsx",
       "web/src/components/ui/card.tsx",
       "web/src/components/ui/label.tsx",
-      "web/src/components/ui/sonner.tsx"
+      "web/src/components/ui/sonner.tsx",
+      "web/src/components/ui/alert.tsx"
     ],
-    "frontend": []
+    "frontend": [
+      "README.md"
+    ],
+    "server": [
+      "README.md"
+    ]
   },
   "userIgnorePatterns": [],
   "disabledSystemPatterns": []

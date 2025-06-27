@@ -7,9 +7,9 @@ export function getButtonIcon(state: ButtonState, defaultIcon: React.ReactNode) 
     case 'loading':
       return <Loader2 className="w-4 h-4 animate-spin" />
     case 'success':
-      return <CheckCircle className="w-4 h-4 text-green-600" />
+      return <CheckCircle className="w-4 h-4 text-[color:var(--color-success)]" />
     case 'error':
-      return <AlertCircle className="w-4 h-4 text-red-600" />
+      return <AlertCircle className="w-4 h-4 text-destructive" />
     default:
       return defaultIcon
   }
@@ -18,8 +18,8 @@ export function getButtonIcon(state: ButtonState, defaultIcon: React.ReactNode) 
 export function getButtonClassName(state: ButtonState, baseClassName = '') {
   const stateClasses = {
     loading: 'opacity-75',
-    success: 'border-green-500 bg-green-50 text-green-700',
-    error: 'border-red-500 bg-red-50 text-red-700',
+    success: 'border-[color:var(--color-success)]/50 bg-[color:var(--color-success)]/5 text-[color:var(--color-success)]',
+    error: 'border-destructive/50 bg-destructive/5 text-destructive',
     idle: ''
   }
 

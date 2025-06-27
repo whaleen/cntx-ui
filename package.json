@@ -50,6 +50,10 @@
     "test:local": "npm pack && npm install -g ./cntx-ui-2.0.0.tgz"
   },
   "dependencies": {
+    "glob": "^8.1.0",
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-javascript": "^0.23.1",
+    "tree-sitter-typescript": "^0.23.2",
     "ws": "^8.13.0"
   }
 }

@@ -5,6 +5,7 @@ import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { startMCPTransport } from './lib/mcp-transport.js';
+import SemanticSplitter from './lib/semantic-splitter.js';
 import { homedir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -51,6 +52,16 @@ export class CntxServer {
       userIgnorePatterns: [], // User-added ignore patterns
       disabledSystemPatterns: [] // System patterns the user disabled
     };
+
+    // Semantic splitting (parallel to bundle system)
+    this.semanticSplitter = new SemanticSplitter({
+      maxChunkSize: 2000,
+      includeContext: true,
+      groupRelated: true,
+      minFunctionSize: 50
+    });
+    this.semanticCache = null;
+    this.lastSemanticAnalysis = null;
   }
 
   init() {
@@ -225,12 +236,12 @@ export class CntxServer {
       '**/.git/**',
       '**/.svn/**',
       '**/.hg/**',
-      
+
       // Dependencies
       '**/node_modules/**',
       '**/vendor/**',
       '**/.pnp/**',
-      
+
       // Build outputs
       '**/dist/**',
       '**/build/**',
@@ -238,18 +249,18 @@ export class CntxServer {
       '**/.next/**',
       '**/.nuxt/**',
       '**/target/**',
-      
+
       // Package files
       '**/*.tgz',
       '**/*.tar.gz',
       '**/*.zip',
       '**/*.rar',
       '**/*.7z',
-      
+
       // Logs
       '**/*.log',
       '**/logs/**',
-      
+
       // Cache directories
       '**/.cache/**',
       '**/.parcel-cache/**',
@@ -257,30 +268,30 @@ export class CntxServer {
       '**/coverage/**',
       '**/.pytest_cache/**',
       '**/__pycache__/**',
-      
+
       // IDE/Editor files
       '**/.vscode/**',
       '**/.idea/**',
       '**/*.swp',
       '**/*.swo',
       '**/*~',
-      
+
       // OS files
       '**/.DS_Store',
       '**/Thumbs.db',
       '**/desktop.ini',
-      
+
       // Environment files
       '**/.env',
       '**/.env.local',
       '**/.env.*.local',
-      
+
       // Lock files
       '**/package-lock.json',
       '**/yarn.lock',
       '**/pnpm-lock.yaml',
       '**/Cargo.lock',
-      
+
       // cntx-ui specific
       '**/.cntx/**'
     ];
@@ -591,7 +602,7 @@ Add your specific project rules and preferences below:
 
   generateClaudeMdTemplate(projectInfo) {
     const { name, description, type } = projectInfo;
-    
+
     let template = `# ${name}
 
 ${description ? `${description}\n\n` : ''}## Project Structure
@@ -802,6 +813,7 @@ This project uses cntx-ui for bundle management and AI context organization.
         if (!this.shouldIgnoreFile(fullPath)) {
           if (!this.isQuietMode) console.log(`File ${eventType}: ${filename}`);
           this.markBundlesChanged(filename.replace(/\\\\/g, '/'));
+          this.invalidateSemanticCache(); // Invalidate semantic cache on file changes
           this.broadcastUpdate();
         }
       }
@@ -903,7 +915,7 @@ This project uses cntx-ui for bundle management and AI context organization.
     // Bundle overview section
     const filesByType = this.categorizeFiles(files);
     const entryPoints = this.identifyEntryPoints(files);
-    
+
     xml += `  <cntx:overview>
     <cntx:purpose>${this.escapeXml(this.getBundlePurpose(bundleName))}</cntx:purpose>
     <cntx:file-types>
@@ -949,7 +961,7 @@ This project uses cntx-ui for bundle management and AI context organization.
     // Then organize by file type
     Object.entries(filesByType).forEach(([type, typeFiles]) => {
       if (type === 'entry-points') return; // Already handled above
-      
+
       const remainingFiles = typeFiles.filter(file => !entryPoints.includes(file));
       if (remainingFiles.length > 0) {
         xml += `    <cntx:group type="${type}" description="${this.getTypeDescription(type)}">
@@ -983,28 +995,28 @@ This project uses cntx-ui for bundle management and AI context organization.
     files.forEach(file => {
       const ext = extname(file).toLowerCase();
       const basename = file.toLowerCase();
-      
-      if (basename.includes('component') || file.includes('/components/') || 
-          ext === '.jsx' || ext === '.tsx' && !basename.includes('test')) {
+
+      if (basename.includes('component') || file.includes('/components/') ||
+        ext === '.jsx' || ext === '.tsx' && !basename.includes('test')) {
         categories.components.push(file);
       } else if (basename.includes('hook') || file.includes('/hooks/')) {
         categories.hooks.push(file);
-      } else if (basename.includes('util') || file.includes('/utils/') || 
-                 basename.includes('helper') || file.includes('/lib/')) {
+      } else if (basename.includes('util') || file.includes('/utils/') ||
+        basename.includes('helper') || file.includes('/lib/')) {
         categories.utilities.push(file);
-      } else if (ext === '.json' || basename.includes('config') || 
-                 ext === '.yaml' || ext === '.yml' || ext === '.toml') {
+      } else if (ext === '.json' || basename.includes('config') ||
+        ext === '.yaml' || ext === '.yml' || ext === '.toml') {
         categories.configuration.push(file);
       } else if (ext === '.css' || ext === '.scss' || ext === '.less') {
         categories.styles.push(file);
-      } else if (basename.includes('type') || ext === '.d.ts' || 
-                 file.includes('/types/')) {
+      } else if (basename.includes('type') || ext === '.d.ts' ||
+        file.includes('/types/')) {
         categories.types.push(file);
-      } else if (basename.includes('test') || basename.includes('spec') || 
-                 file.includes('/test/') || file.includes('/__tests__/')) {
+      } else if (basename.includes('test') || basename.includes('spec') ||
+        file.includes('/test/') || file.includes('/__tests__/')) {
         categories.tests.push(file);
-      } else if (ext === '.md' || basename.includes('readme') || 
-                 basename.includes('doc')) {
+      } else if (ext === '.md' || basename.includes('readme') ||
+        basename.includes('doc')) {
         categories.documentation.push(file);
       } else {
         categories.other.push(file);
@@ -1023,16 +1035,16 @@ This project uses cntx-ui for bundle management and AI context organization.
 
   identifyEntryPoints(files) {
     const entryPoints = [];
-    
+
     files.forEach(file => {
       const basename = file.toLowerCase();
-      
+
       // Common entry point patterns
-      if (basename.includes('main.') || basename.includes('index.') || 
-          basename.includes('app.') || basename === 'server.js' ||
-          file.endsWith('/App.tsx') || file.endsWith('/App.jsx') ||
-          file.endsWith('/main.tsx') || file.endsWith('/main.js') ||
-          file.endsWith('/index.tsx') || file.endsWith('/index.js')) {
+      if (basename.includes('main.') || basename.includes('index.') ||
+        basename.includes('app.') || basename === 'server.js' ||
+        file.endsWith('/App.tsx') || file.endsWith('/App.jsx') ||
+        file.endsWith('/main.tsx') || file.endsWith('/main.js') ||
+        file.endsWith('/index.tsx') || file.endsWith('/index.js')) {
         entryPoints.push(file);
       }
     });
@@ -1083,11 +1095,11 @@ This project uses cntx-ui for bundle management and AI context organization.
     try {
       const stat = statSync(fullPath);
       const content = readFileSync(fullPath, 'utf8');
-      
+
       // Add role indicator for certain files
       const role = this.getFileRole(file);
       const roleAttr = role ? ` role="${role}"` : '';
-      
+
       fileXml = `      <cntx:file path="${file}" ext="${extname(file)}"${roleAttr}>
 `;
       fileXml += `        <cntx:meta size="${stat.size}" modified="${stat.mtime.toISOString()}" lines="${content.split('\n').length}" />
@@ -1105,17 +1117,16 @@ This project uses cntx-ui for bundle management and AI context organization.
 
   getFileRole(file) {
     const basename = file.toLowerCase();
-    
+
     if (basename.includes('main.') || basename.includes('index.')) return 'entry-point';
     if (basename.includes('app.')) return 'main-component';
     if (file === 'server.js') return 'server-entry';
     if (basename.includes('config')) return 'configuration';
     if (basename.includes('package.json')) return 'package-config';
     if (basename.includes('readme')) return 'documentation';
-    
+
     return null;
   }
-
 
   escapeXml(text) {
     return String(text)
@@ -1276,6 +1287,8 @@ This project uses cntx-ui for bundle management and AI context organization.
       }
 
       // API Routes
+      console.log('🔍 Processing API request:', url.pathname);
+
       if (url.pathname === '/api/bundles') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         const bundleData = Array.from(this.bundles.entries()).map(([name, bundle]) => ({
@@ -1288,6 +1301,72 @@ This project uses cntx-ui for bundle management and AI context organization.
           size: bundle.size
         }));
         res.end(JSON.stringify(bundleData));
+
+      } else if (url.pathname === '/api/semantic-chunks') {
+        console.log('🔍 Semantic chunks route matched! URL:', url.pathname);
+        this.getSemanticAnalysis()
+          .then(analysis => {
+            console.log('✅ Semantic analysis successful');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(analysis));
+          })
+          .catch(error => {
+            console.error('❌ Semantic analysis failed:', error.message);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: error.message }));
+          });
+
+      } else if (url.pathname === '/api/semantic-chunks/export') {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const { chunkName } = JSON.parse(body);
+              this.exportSemanticChunk(chunkName)
+                .then(xmlContent => {
+                  res.writeHead(200, { 'Content-Type': 'application/xml' });
+                  res.end(xmlContent);
+                })
+                .catch(error => {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: error.message }));
+                });
+            } catch (error) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: error.message }));
+            }
+          });
+        } else {
+          res.writeHead(405);
+          res.end('Method not allowed');
+        }
+
+      } else if (url.pathname === '/api/bundles-from-chunk') {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const { chunkName, files } = JSON.parse(body);
+              this.createBundleFromChunk(chunkName, files)
+                .then(() => {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ success: true }));
+                })
+                .catch(error => {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: error.message }));
+                });
+            } catch (error) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: error.message }));
+            }
+          });
+        } else {
+          res.writeHead(405);
+          res.end('Method not allowed');
+        }
 
       } else if (url.pathname.startsWith('/api/bundles/')) {
         const bundleName = url.pathname.split('/').pop();
@@ -1590,11 +1669,11 @@ This project uses cntx-ui for bundle management and AI context organization.
       } else if (url.pathname.startsWith('/api/bundle-categories/')) {
         const bundleName = url.pathname.split('/').pop();
         const bundle = this.bundles.get(bundleName);
-        
+
         if (bundle) {
           const filesByType = this.categorizeFiles(bundle.files);
           const entryPoints = this.identifyEntryPoints(bundle.files);
-          
+
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             purpose: this.getBundlePurpose(bundleName),
@@ -1636,6 +1715,36 @@ This project uses cntx-ui for bundle management and AI context organization.
             }
           });
         }
+
+      } else if (url.pathname === '/api/mcp-status') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+
+        // Simple check - MCP is available if we can find package.json
+        let isAccessible = true;
+        let testResult = 'available';
+
+        // Check if package.json exists using existing imports
+        try {
+          const packagePath = join(this.CWD, 'package.json');
+          if (existsSync(packagePath)) {
+            testResult = 'local_package_found';
+          } else {
+            testResult = 'using_global_npx';
+          }
+        } catch (error) {
+          testResult = 'check_failed';
+        }
+
+        const mcpStatus = {
+          running: isAccessible,
+          accessible: isAccessible,
+          testResult: testResult,
+          command: 'npx cntx-ui mcp',
+          workingDirectory: this.CWD,
+          lastChecked: new Date().toISOString(),
+          trackingEnabled: this.mcpServerStarted || false
+        };
+        res.end(JSON.stringify(mcpStatus, null, 2));
 
       } else if (url.pathname === '/api/status') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1712,19 +1821,150 @@ This project uses cntx-ui for bundle management and AI context organization.
     this.watchers.forEach(watcher => watcher.close());
     this.saveBundleStates();
   }
+
+  // Semantic Chunking Methods
+  async getSemanticAnalysis() {
+    // Force refresh always for now (TODO: implement proper cache invalidation)
+    this.semanticCache = null // Clear cache
+    const shouldRefresh = true
+    
+    console.log('🔍 Cache check - shouldRefresh:', shouldRefresh, 'lastAnalysis:', this.lastSemanticAnalysis, 'now:', Date.now());
+
+    if (shouldRefresh) {
+      try {
+        // Auto-discover JavaScript/TypeScript files in the entire project
+        const patterns = ['**/*.{js,jsx,ts,tsx,mjs}'];
+        
+        // Load bundle configuration for chunk grouping
+        let bundleConfig = null;
+        if (existsSync(this.CONFIG_FILE)) {
+          bundleConfig = JSON.parse(readFileSync(this.CONFIG_FILE, 'utf8'));
+        }
+        
+        this.semanticCache = await this.semanticSplitter.extractSemanticChunks(this.CWD, patterns, bundleConfig);
+        this.lastSemanticAnalysis = Date.now();
+        
+        // Debug logging
+        console.log('🔍 Semantic analysis complete. Sample chunk keys:', 
+          this.semanticCache.chunks.length > 0 ? Object.keys(this.semanticCache.chunks[0]) : 'No chunks');
+        if (this.semanticCache.chunks.length > 0) {
+          console.log('🔍 Sample chunk businessDomains:', this.semanticCache.chunks[0].businessDomains);
+        }
+      } catch (error) {
+        console.error('Semantic analysis failed:', error.message);
+        throw new Error(`Semantic analysis failed: ${error.message}`);
+      }
+    }
+
+    return this.semanticCache;
+  }
+
+  async exportSemanticChunk(chunkName) {
+    const analysis = await this.getSemanticAnalysis();
+    const chunk = analysis.chunks.find(c => c.name === chunkName);
+
+    if (!chunk) {
+      throw new Error(`Chunk "${chunkName}" not found`);
+    }
+
+    // Generate XML content for the chunk files
+    let xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xmlContent += `<codebase_context semantic_chunk="${chunkName}">\n`;
+    xmlContent += `  <chunk_info>\n`;
+    xmlContent += `    <name>${chunkName}</name>\n`;
+    xmlContent += `    <purpose>${chunk.purpose || 'No description'}</purpose>\n`;
+    xmlContent += `    <file_count>${chunk.files.length}</file_count>\n`;
+    xmlContent += `    <size>${chunk.size} bytes</size>\n`;
+    xmlContent += `    <complexity>${chunk.complexity?.level || 'unknown'}</complexity>\n`;
+    xmlContent += `    <tags>${(chunk.tags || []).join(', ')}</tags>\n`;
+    xmlContent += `  </chunk_info>\n\n`;
+
+    // Add each function in the chunk
+    if (chunk.functions) {
+      for (const func of chunk.functions) {
+        xmlContent += `  <function name="${func.name}" file="${func.filePath}">\n`;
+        xmlContent += `    <signature>${func.signature}</signature>\n`;
+        xmlContent += `    <type>${func.type}</type>\n`;
+        xmlContent += `    <lines>${func.startLine}-${func.endLine}</lines>\n`;
+        
+        if (func.context.imports.length > 0) {
+          xmlContent += `    <imports>${func.context.imports.join(', ')}</imports>\n`;
+        }
+        
+        xmlContent += `    <code>\n`;
+        xmlContent += func.code
+          .split('\n')
+          .map((line, i) => `${(func.startLine + i).toString().padStart(3)}  ${line}`)
+          .join('\n');
+        xmlContent += `\n    </code>\n`;
+        xmlContent += `  </function>\n\n`;
+      }
+    } else {
+      // Fallback for file-based chunks
+      for (const filePath of chunk.files || []) {
+        const fullPath = join(this.CWD, filePath);
+        if (existsSync(fullPath)) {
+          try {
+            const content = readFileSync(fullPath, 'utf8');
+            xmlContent += `  <file path="${filePath}">\n`;
+            xmlContent += content
+              .split('\n')
+              .map((line, i) => `${(i + 1).toString().padStart(3)}  ${line}`)
+              .join('\n');
+            xmlContent += `\n  </file>\n\n`;
+          } catch (error) {
+            console.warn(`Could not read file ${filePath}:`, error.message);
+          }
+        }
+      }
+    }
+
+    xmlContent += `</codebase_context>`;
+    return xmlContent;
+  }
+
+  async createBundleFromChunk(chunkName, files) {
+    // Load current config
+    let config = {};
+    if (existsSync(this.CONFIG_FILE)) {
+      config = JSON.parse(readFileSync(this.CONFIG_FILE, 'utf8'));
+    }
+
+    if (!config.bundles) {
+      config.bundles = {};
+    }
+
+    // Create bundle with the chunk name and files
+    const bundleName = chunkName.toLowerCase().replace(/[-\s]+/g, '-');
+    config.bundles[bundleName] = files;
+
+    // Save config
+    writeFileSync(this.CONFIG_FILE, JSON.stringify(config, null, 2));
+
+    // Reload bundles
+    this.loadConfig();
+    this.generateAllBundles();
+    this.saveBundleStates();
+    this.broadcastUpdate();
+  }
+
+  invalidateSemanticCache() {
+    this.semanticCache = null;
+    this.lastSemanticAnalysis = null;
+  }
 }
 
 export function startServer(options = {}) {
   const server = new CntxServer(options.cwd, { quiet: options.quiet });
   server.init();
-  
+
   if (options.withMcp) {
     server.mcpServerStarted = true;
     if (!server.isQuietMode) {
       console.log('🔗 MCP server tracking enabled - use /api/status to check MCP configuration');
     }
   }
-  
+
   return server.startServer(options.port);
 }
 
@@ -1900,17 +2140,17 @@ export function setupMCP(cwd = process.cwd(), options = {}) {
   // Write updated config
   try {
     writeFileSync(configFile, JSON.stringify(config, null, 2));
-    
+
     if (!isQuiet) {
       console.log(`✅ Added MCP server: ${serverName}`);
       console.log('📋 Your Claude Desktop config now includes:');
-      
+
       Object.keys(config.mcpServers).forEach(name => {
         if (name.startsWith('cntx-ui-')) {
           console.log(`  • ${name}: ${config.mcpServers[name].cwd}`);
         }
       });
-      
+
       console.log('🔄 Please restart Claude Desktop to use the updated configuration');
     }
   } catch (error) {
