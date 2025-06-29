@@ -1,46 +1,12 @@
-# System patterns
-**/.git/**
-**/.svn/**
-**/.hg/**
-**/node_modules/**
-**/vendor/**
-**/.pnp/**
-**/dist/**
-**/build/**
-**/out/**
-**/.next/**
-**/.nuxt/**
-**/target/**
-**/*.tgz
-**/*.tar.gz
-**/*.zip
-**/*.rar
-**/*.7z
-**/*.log
-**/logs/**
-**/.cache/**
-**/.parcel-cache/**
-**/.nyc_output/**
-**/coverage/**
-**/.pytest_cache/**
-**/__pycache__/**
-**/.vscode/**
-**/.idea/**
-**/*.swp
-**/*.swo
-**/*~
-**/.DS_Store
-**/Thumbs.db
-**/desktop.ini
-**/.env
-**/.env.local
-**/.env.*.local
-**/package-lock.json
-**/yarn.lock
-**/pnpm-lock.yaml
-**/Cargo.lock
-**/.cntx/**
+# cntx-ui ignore patterns
+# Add project-specific patterns here
 
-# User patterns
+# Temporary and log files
+*.log
+startup.log
+server-output.log
 
-# File-specific patterns (edit manually)
+# Generated files that shouldn't be in bundles
+.cntx/semantic-cache.json
+.cntx/bundles.json
+

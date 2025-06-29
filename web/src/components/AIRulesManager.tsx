@@ -122,7 +122,7 @@ export function AIRulesManager() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-medium">
+        <CardTitle className="flex items-center gap-2 text-sm font-thin">
           <Sparkles className="w-4 h-4" />
           AI Rules & Context
         </CardTitle>
@@ -131,7 +131,7 @@ export function AIRulesManager() {
         <Alert className="mb-4">
           <Info className="w-4 h-4" />
           <AlertDescription>
-            Configure AI context files for better assistance. <strong>.cursorrules</strong> works with Cursor, 
+            Configure AI context files for better assistance. <strong>.cursorrules</strong> works with Cursor,
             while <strong>CLAUDE.md</strong> provides project context for Claude.
           </AlertDescription>
         </Alert>
@@ -151,8 +151,8 @@ export function AIRulesManager() {
           <TabsContent value="cursor" className="space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-sm font-medium">Cursor AI Assistant Rules</h3>
-                <p className="text-xs text-muted-foreground font-normal">
+                <h3 className="text-sm font-thin">Cursor AI Assistant Rules</h3>
+                <p className="text-xs text-muted-foreground font-thin">
                   Configure how Cursor's AI understands your project
                 </p>
               </div>
@@ -205,8 +205,8 @@ export function AIRulesManager() {
           <TabsContent value="claude" className="space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-sm font-medium">Claude Project Context</h3>
-                <p className="text-xs text-muted-foreground font-normal">
+                <h3 className="text-sm font-thin">Claude Project Context</h3>
+                <p className="text-xs text-muted-foreground font-thin">
                   Markdown file explaining your project structure and guidelines
                 </p>
               </div>
@@ -258,7 +258,7 @@ export function AIRulesManager() {
             <Alert>
               <Info className="w-4 h-4" />
               <AlertDescription>
-                This file helps Claude understand your project. Include project structure, 
+                This file helps Claude understand your project. Include project structure,
                 coding conventions, key concepts, and any important context.
               </AlertDescription>
             </Alert>

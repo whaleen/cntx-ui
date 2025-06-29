@@ -1,0 +1,198 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-28",
+  "confidence": {
+    "minThreshold": 0.7,
+    "learningRate": 0.1
+  },
+  "purposeHeuristics": {
+    "patterns": {
+      "reactComponent": {
+        "conditions": ["func.type === 'react_component'"],
+        "purpose": "React component",
+        "confidence": 0.95
+      },
+      "reactHook": {
+        "conditions": ["name.startsWith('use')", "func.type === 'function'"],
+        "purpose": "React hook",
+        "confidence": 0.9
+      },
+      "apiHandler": {
+        "conditions": ["name.includes('api')", "name.includes('endpoint')"],
+        "purpose": "API handler",
+        "confidence": 0.85
+      },
+      "dataRetrieval": {
+        "conditions": ["name.includes('get')", "name.includes('fetch')"],
+        "purpose": "Data retrieval",
+        "confidence": 0.8
+      },
+      "dataCreation": {
+        "conditions": ["name.includes('create')", "name.includes('add')"],
+        "purpose": "Data creation",
+        "confidence": 0.8
+      },
+      "dataModification": {
+        "conditions": ["name.includes('update')", "name.includes('edit')"],
+        "purpose": "Data modification",
+        "confidence": 0.8
+      },
+      "dataDeletion": {
+        "conditions": ["name.includes('delete')", "name.includes('remove')"],
+        "purpose": "Data deletion",
+        "confidence": 0.8
+      },
+      "validation": {
+        "conditions": ["name.includes('validate')", "name.includes('check')"],
+        "purpose": "Validation",
+        "confidence": 0.75
+      },
+      "dataProcessing": {
+        "conditions": ["name.includes('parse')", "name.includes('format')"],
+        "purpose": "Data processing",
+        "confidence": 0.75
+      }
+    },
+    "fallback": {
+      "purpose": "Utility function",
+      "confidence": 0.5
+    }
+  },
+  "bundleHeuristics": {
+    "patterns": {
+      "frontend": {
+        "conditions": [
+          "pathParts.includes('web')",
+          "pathParts.includes('src')"
+        ],
+        "bundle": "frontend",
+        "confidence": 0.8,
+        "subPatterns": {
+          "uiComponents": {
+            "conditions": ["pathParts.includes('components')"],
+            "bundle": "ui-components",
+            "confidence": 0.9
+          }
+        }
+      },
+      "server": {
+        "conditions": [
+          "fileName.includes('server')",
+          "fileName.includes('api')",
+          "pathParts.includes('bin')"
+        ],
+        "bundle": "server",
+        "confidence": 0.85
+      },
+      "configuration": {
+        "conditions": [
+          "fileName.includes('config')",
+          "fileName.includes('setup')",
+          "fileName.endsWith('.json')",
+          "fileName.endsWith('.sh')",
+          "fileName.includes('package')"
+        ],
+        "bundle": "config",
+        "confidence": 0.9
+      },
+      "documentation": {
+        "conditions": [
+          "fileName.endsWith('.md')",
+          "fileName.includes('doc')",
+          "fileName.includes('readme')"
+        ],
+        "bundle": "docs",
+        "confidence": 0.95
+      }
+    },
+    "fallback": {
+      "webFallback": {
+        "conditions": ["pathParts.includes('web')"],
+        "bundle": "frontend",
+        "confidence": 0.6
+      },
+      "defaultFallback": {
+        "bundles": ["server", "config"],
+        "confidence": 0.4
+      }
+    }
+  },
+  "semanticTypeMapping": {
+    "clusters": {
+      "businessLogic": {
+        "types": ["business_logic", "algorithm"],
+        "clusterId": 0,
+        "color": [37, 99, 235]
+      },
+      "dataLayer": {
+        "types": ["data_processing", "database"],
+        "clusterId": 1,
+        "color": [16, 185, 129]
+      },
+      "apiLayer": {
+        "types": ["api_integration", "middleware", "routing"],
+        "clusterId": 2,
+        "color": [251, 146, 60]
+      },
+      "uiLayer": {
+        "types": ["ui_component", "page_component", "layout_component", "hook"],
+        "clusterId": 3,
+        "color": [168, 85, 247]
+      },
+      "utilities": {
+        "types": ["utility", "configuration", "function", "type_definition", "component_types", "config_types", "constant", "import_export"],
+        "clusterId": 4,
+        "color": [107, 114, 128]
+      },
+      "testing": {
+        "types": ["testing", "documentation", "monitoring"],
+        "clusterId": 5,
+        "color": [34, 197, 94]
+      },
+      "infrastructure": {
+        "types": ["error_handling", "performance", "security"],
+        "clusterId": 6,
+        "color": [239, 68, 68]
+      },
+      "unknown": {
+        "types": ["unknown"],
+        "clusterId": 7,
+        "color": [156, 163, 175]
+      }
+    }
+  },
+  "activities": {
+    "heuristicsRefinement": {
+      "name": "refine-heuristics",
+      "description": "Analyze and improve code categorization accuracy",
+      "inputs": ["misclassifications", "user_corrections", "confidence_scores"],
+      "outputs": ["updated_heuristics", "performance_report"],
+      "frequency": "weekly",
+      "autoTrigger": {
+        "condition": "accuracy < 0.8",
+        "threshold": 10
+      }
+    },
+    "purposePatternDiscovery": {
+      "name": "discover-purpose-patterns",
+      "description": "Find new naming patterns for code purposes",
+      "inputs": ["function_names", "code_content", "existing_patterns"],
+      "outputs": ["new_patterns", "confidence_scores"],
+      "frequency": "monthly"
+    },
+    "bundleOptimization": {
+      "name": "optimize-bundle-rules",
+      "description": "Improve file-to-bundle assignment accuracy",
+      "inputs": ["file_paths", "current_assignments", "user_corrections"],
+      "outputs": ["updated_rules", "assignment_suggestions"],
+      "frequency": "bi-weekly"
+    }
+  },
+  "metadata": {
+    "totalFunctionsAnalyzed": 0,
+    "accuracyScore": 0.0,
+    "lastRefinement": null,
+    "userCorrections": [],
+    "performanceHistory": []
+  }
+}

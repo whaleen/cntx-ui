@@ -125,7 +125,7 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
           ) : (
             <Folder className="w-4 h-4 text-[color:var(--color-info)]" />
           )}
-          <span className="text-xs font-normal">{node.name}</span>
+          <span className="text-xs font-thin">{node.name}</span>
           {node.children && (
             <span className="text-xs text-muted-foreground ml-auto">
               {node.children.length} items
@@ -266,7 +266,7 @@ export function FileTree() {
           </Button>
         </div>
 
-        <div className="text-xs text-muted-foreground font-normal">
+        <div className="text-xs text-muted-foreground font-thin">
           {totalFiles} files tracked
         </div>
       </div>
@@ -294,7 +294,7 @@ export function FileTree() {
 
       {/* Bundle Legend */}
       <Card className="p-4">
-        <h3 className="text-xs font-medium mb-2">Bundle Legend</h3>
+        <h3 className="text-xs font-thin mb-2">Bundle Legend</h3>
         <div className="flex flex-wrap gap-2">
           {bundles.map(bundle => (
             <Badge key={bundle.name} variant="outline">

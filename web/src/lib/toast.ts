@@ -22,11 +22,12 @@ export const toast = {
       description,
     })
   },
-  warning: (message: string, description?: string) => {
+  warning: (message: string, description?: string, options?: { duration?: number }) => {
     return baseToast({
       variant: "warning", 
       title: message,
       description,
+      duration: options?.duration,
     })
   },
 }

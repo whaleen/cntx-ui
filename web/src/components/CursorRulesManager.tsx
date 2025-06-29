@@ -156,7 +156,7 @@ export function CursorRulesManager() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className="text-lg font-thin flex items-center gap-2">
             <Sparkles className="w-5 h-5" />
             Cursor Rules Management
           </h2>
@@ -310,7 +310,7 @@ export function CursorRulesManager() {
                     className="justify-start h-auto p-4"
                   >
                     <div className="text-left">
-                      <div className="font-medium">React Application</div>
+                      <div className="font-thin">React Application</div>
                       <div className="text-sm text-muted-foreground">
                         Modern React with TypeScript, hooks, and Tailwind CSS
                       </div>
@@ -323,7 +323,7 @@ export function CursorRulesManager() {
                     className="justify-start h-auto p-4"
                   >
                     <div className="text-left">
-                      <div className="font-medium">Node.js Backend</div>
+                      <div className="font-thin">Node.js Backend</div>
                       <div className="text-sm text-muted-foreground">
                         Express/Fastify backend with ES modules and TypeScript
                       </div>
@@ -336,7 +336,7 @@ export function CursorRulesManager() {
                     className="justify-start h-auto p-4"
                   >
                     <div className="text-left">
-                      <div className="font-medium">General Project</div>
+                      <div className="font-thin">General Project</div>
                       <div className="text-sm text-muted-foreground">
                         Basic template for any type of project
                       </div>
@@ -362,7 +362,7 @@ export function CursorRulesManager() {
 
                 <div className="space-y-3">
                   <div>
-                    <h4 className="font-medium mb-2">Best Practices</h4>
+                    <h4 className="font-thin mb-2">Best Practices</h4>
                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                       <li>Include project context and technology stack</li>
                       <li>Specify coding standards and naming conventions</li>
@@ -373,7 +373,7 @@ export function CursorRulesManager() {
                   </div>
 
                   <div>
-                    <h4 className="font-medium mb-2">Example Sections</h4>
+                    <h4 className="font-thin mb-2">Example Sections</h4>
                     <div className="bg-muted/50 p-3 rounded text-xs font-mono">
                       # Project Context<br />
                       # Development Guidelines<br />

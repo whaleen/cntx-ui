@@ -2,8 +2,8 @@
 node_modules/
 web/node_modules/
 
-# Build outputs (but keep web/dist for publishing)
-# web/dist/
+# Build outputs
+web/dist/
 *.tgz
 *.tar.gz
 

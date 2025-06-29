@@ -58,6 +58,14 @@
   --color-type-documentation: var(--muted);
   --color-type-documentation-fg: var(--muted-foreground);
   
+  /* Vector visualization semantic type colors */
+  --color-vector-functions: oklch(0.6 0.08 220); /* Blue */
+  --color-vector-react: oklch(0.65 0.12 15); /* Red */
+  --color-vector-classes: oklch(0.65 0.1 140); /* Green */
+  --color-vector-types: oklch(0.7 0.1 65); /* Orange */
+  --color-vector-config: oklch(0.65 0.08 280); /* Purple */
+  --color-vector-unknown: oklch(0.5 0.02 240); /* Gray */
+  
   /* Status colors */
   --color-success: oklch(0.75 0.12 140);
   --color-success-foreground: oklch(0.98 0.005 240);
@@ -69,10 +77,10 @@
 
 :root {
   --radius: 0.225rem;
-  --background: oklch(0.98 0.005 240);
+  --background: oklch(0.98 0.01 240);
   --foreground: oklch(0.25 0.02 240);
-  --card: oklch(0.99 0.003 240);
-  --card-foreground: oklch(0.25 0.02 240);
+  --card: oklch(0.98 0.014 240);
+  --card-foreground: oklch(0.1 0.02 240);
   --popover: oklch(0.99 0.003 240);
   --popover-foreground: oklch(0.25 0.02 240);
   --primary: oklch(0.65 0.08 200);
@@ -100,12 +108,35 @@
   --sidebar-accent-foreground: oklch(0.35 0.03 240);
   --sidebar-border: oklch(0.88 0.01 240);
   --sidebar-ring: oklch(0.65 0.08 200);
+  --color-semantic-ui_component: #e57373;
+  --color-semantic-page_component: #f06292;
+  --color-semantic-layout_component: #ba68c8;
+  --color-semantic-modal_component: #ce93d8;
+  --color-semantic-form_component: #81d4fa;
+  --color-semantic-hook: #64b5f6;
+  --color-semantic-context: #4dd0e1;
+  --color-semantic-state_management: #81c784;
+  --color-semantic-api_integration: #ffd54f;
+  --color-semantic-data_model: #a1887f;
+  --color-semantic-utility: #90a4ae;
+  --color-semantic-configuration: #bdbdbd;
+  --color-semantic-styling: #ffb74d;
+  --color-semantic-testing: #aed581;
+  --color-semantic-documentation: #fff176;
+  --color-semantic-error_handling: #e57373;
+  --color-semantic-performance: #4fc3f7;
+  --color-semantic-security: #9575cd;
+  --color-semantic-monitoring: #f06292;
+  --color-semantic-type_definition: #ffd54f;
+  --color-semantic-business_logic: #81c784;
+  --color-semantic-algorithm: #ba68c8;
+  --color-semantic-unknown: #b0bec5;
 }
 
 .dark {
-  --background: oklch(0.13 0.01 240);
-  --foreground: oklch(0.85 0.02 240);
-  --card: oklch(0.13 0.01 240);
+  --background: oklch(0.15 0.01 240);
+  --foreground: oklch(0.75 0.01 240);
+  --card: oklch(0.145 0.01 240);
   --card-foreground: oklch(0.85 0.02 240);
   --popover: oklch(0.22 0.015 240);
   --popover-foreground: oklch(0.85 0.02 240);
@@ -134,14 +165,29 @@
   --sidebar-accent-foreground: oklch(0.85 0.02 240);
   --sidebar-border: oklch(0.35 0.02 240);
   --sidebar-ring: oklch(0.7 0.06 200);
-  
-  /* Dark mode status colors */
-  --color-success: oklch(0.65 0.1 140);
-  --color-success-foreground: oklch(0.15 0.01 240);
-  --color-warning: oklch(0.7 0.1 65);
-  --color-warning-foreground: oklch(0.15 0.01 240);
-  --color-info: var(--primary);
-  --color-info-foreground: var(--primary-foreground);
+  --color-semantic-ui_component: #b71c1c;
+  --color-semantic-page_component: #ad1457;
+  --color-semantic-layout_component: #6a1b9a;
+  --color-semantic-modal_component: #8e24aa;
+  --color-semantic-form_component: #0288d1;
+  --color-semantic-hook: #1976d2;
+  --color-semantic-context: #00838f;
+  --color-semantic-state_management: #388e3c;
+  --color-semantic-api_integration: #ffa000;
+  --color-semantic-data_model: #5d4037;
+  --color-semantic-utility: #455a64;
+  --color-semantic-configuration: #757575;
+  --color-semantic-styling: #f57c00;
+  --color-semantic-testing: #689f38;
+  --color-semantic-documentation: #fbc02d;
+  --color-semantic-error_handling: #c62828;
+  --color-semantic-performance: #0288d1;
+  --color-semantic-security: #512da8;
+  --color-semantic-monitoring: #ad1457;
+  --color-semantic-type_definition: #ffa000;
+  --color-semantic-business_logic: #388e3c;
+  --color-semantic-algorithm: #6a1b9a;
+  --color-semantic-unknown: #37474f;
 }
 
 @layer base {
@@ -152,4 +198,24 @@
     @apply bg-background text-foreground;
     font-family: 'JetBrains Mono', monospace;
   }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Hide Plotly hover arrows/callouts */
+.js-plotly-plot .hoverlayer .axistext,
+.js-plotly-plot .hoverlayer .hovertext .nums,
+.js-plotly-plot .hoverlayer .hovertext .name,
+.js-plotly-plot .hoverlayer .hovertext .legendtoggle,
+.js-plotly-plot .hoverlayer .hovertext .hovertext-bg,
+.js-plotly-plot .hoverlayer .hovertext .hovertext-arrow {
+  display: none !important;
 }

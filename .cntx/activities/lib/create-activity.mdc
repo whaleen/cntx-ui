@@ -1,0 +1,63 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: Generating an Activity Definition
+
+## Goal
+
+To guide an AI assistant in creating a detailed Activity Definition in Markdown format, based on an initial user prompt. The Activity should be clear, actionable, and suitable for a junior developer to understand and implement the feature or improvement for the cntx-ui project.
+
+## Process
+
+1.  **Receive Initial Prompt:** The user provides a brief description or request for a new feature, improvement, or functionality for cntx-ui.
+2.  **Ask Clarifying Questions:** Before writing the Activity, the AI *must* ask clarifying questions to gather sufficient detail. The goal is to understand the "what" and "why" of the activity, not necessarily the "how" (which the developer will figure out). Make sure to provide options in letter/number lists so I can respond easily with my selections.
+3.  **Generate Activity:** Based on the initial prompt and the user's answers to the clarifying questions, generate an Activity using the structure outlined below.
+4.  **Save Activity:** Save the generated document as `activity-[feature-name].md` inside the `.cntx/activities/[activity-name]/` directory.
+
+## Clarifying Questions (Examples)
+
+The AI should adapt its questions based on the prompt, but here are some common areas to explore:
+
+*   **Problem/Goal:** "What problem does this activity solve for cntx-ui users?" or "What is the main goal we want to achieve with this activity?"
+*   **Target User:** "Who is the primary user of this feature? (e.g., developers using cntx-ui, AI assistants, end users of bundled applications)"
+*   **Core Functionality:** "Can you describe the key actions a user should be able to perform with this feature?"
+*   **User Stories:** "Could you provide a few user stories? (e.g., As a [type of user], I want to [perform an action] so that [benefit].)"
+*   **Acceptance Criteria:** "How will we know when this activity is successfully implemented? What are the key success criteria?"
+*   **Scope/Boundaries:** "Are there any specific things this activity *should not* do (non-goals)?"
+*   **Data Requirements:** "What kind of data does this feature need to display or manipulate? (e.g., bundle configurations, file metadata, semantic chunks)"
+*   **Design/UI:** "Are there any existing design patterns in cntx-ui to follow?" or "Can you describe the desired look and feel?"
+*   **Edge Cases:** "Are there any potential edge cases or error conditions we should consider?"
+
+## Activity Structure
+
+The generated Activity should include the following sections:
+
+1.  **Introduction/Overview:** Briefly describe the activity and the problem it solves for cntx-ui. State the goal.
+2.  **Goals:** List the specific, measurable objectives for this activity.
+3.  **User Stories:** Detail the user narratives describing activity usage and benefits.
+4.  **Functional Requirements:** List the specific functionalities the activity must have. Use clear, concise language (e.g., "The system must allow users to configure bundle rules."). Number these requirements.
+5.  **Non-Goals (Out of Scope):** Clearly state what this activity will *not* include to manage scope.
+6.  **Design Considerations (Optional):** Link to existing UI components, describe UI/UX requirements, or mention relevant cntx-ui components/styles if applicable.
+7.  **Technical Considerations (Optional):** Mention any known technical constraints, dependencies, or suggestions (e.g., "Should integrate with the existing bundle management system").
+8.  **Success Metrics:** How will the success of this activity be measured? (e.g., "Improve bundle generation speed by 20%", "Reduce configuration errors by 50%").
+9.  **Open Questions:** List any remaining questions or areas needing further clarification.
+
+## Target Audience
+
+Assume the primary reader of the Activity is a **junior developer** working on cntx-ui. Therefore, requirements should be explicit, unambiguous, and avoid jargon where possible. Provide enough detail for them to understand the activity's purpose and core logic.
+
+## Output
+
+*   **Format:** Markdown (`.md`)
+*   **Location:** `.cntx/activities/activities/[activity-name]/`
+*   **Filename:** `README.md`
+
+## Final instructions
+
+1. Do NOT start implementing the Activity
+2. Make sure to ask the user clarifying questions
+3. Take the user's answers to the clarifying questions and improve the Activity
+4. Consider how this activity fits into the broader cntx-ui ecosystem of file bundling and AI development tools
+5. **REQUIRED**: After creating the activity README.md, update `.cntx/activities/activities.json` to register the new activity with proper title, description, desired_outcome, references, status, and tasks

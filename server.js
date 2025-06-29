@@ -1,17 +1,33 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, watch, readdirSync, statSync } from 'fs';
-import { join, dirname, relative, extname, basename } from 'path';
+/**
+ * Refactored cntx-ui Server
+ * Lean orchestration layer using modular architecture
+ */
+
 import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import path from 'path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import * as fs from 'fs';
+import { homedir } from 'os';
+
+// Import our modular components
+import ConfigurationManager from './lib/configuration-manager.js';
+import FileSystemManager from './lib/file-system-manager.js';
+import BundleManager from './lib/bundle-manager.js';
+import APIRouter from './lib/api-router.js';
+import WebSocketManager from './lib/websocket-manager.js';
+
+// Import existing lib modules
 import { startMCPTransport } from './lib/mcp-transport.js';
 import SemanticSplitter from './lib/semantic-splitter.js';
-import { homedir } from 'os';
+import SimpleVectorStore from './lib/simple-vector-store.js';
+import { MCPServer } from './lib/mcp-server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Utility function for content types
 function getContentType(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
+  const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
   const contentTypes = {
     '.html': 'text/html',
     '.js': 'application/javascript',
@@ -31,1825 +47,213 @@ export class CntxServer {
     this.CWD = cwd;
     this.CNTX_DIR = join(cwd, '.cntx');
     this.isQuietMode = options.quiet || false;
-    this.CONFIG_FILE = join(this.CNTX_DIR, 'config.json');
-    this.BUNDLES_FILE = join(this.CNTX_DIR, 'bundles.json');
-    this.HIDDEN_FILES_CONFIG = join(this.CNTX_DIR, 'hidden-files.json');
-    this.IGNORE_FILE = join(cwd, '.cntxignore');
-    this.CURSOR_RULES_FILE = join(cwd, '.cursorrules');
-    this.CLAUDE_MD_FILE = join(cwd, 'CLAUDE.md');
-
-    this.bundles = new Map();
-    this.ignorePatterns = [];
-    this.watchers = [];
-    this.clients = new Set();
-    this.isScanning = false;
-    this.mcpServer = null;
     this.mcpServerStarted = false;
+    this.mcpServer = null;
 
-    this.hiddenFilesConfig = {
-      globalHidden: [], // Files hidden across all bundles
-      bundleSpecific: {}, // Files hidden per bundle: { bundleName: [filePaths] }
-      userIgnorePatterns: [], // User-added ignore patterns
-      disabledSystemPatterns: [] // System patterns the user disabled
-    };
+    // Initialize modular components
+    this.configManager = new ConfigurationManager(cwd);
+    this.fileSystemManager = new FileSystemManager(cwd);
+    this.bundleManager = new BundleManager(this.configManager, this.fileSystemManager);
+    this.webSocketManager = new WebSocketManager(this.bundleManager, this.configManager);
 
-    // Semantic splitting (parallel to bundle system)
+    // Initialize semantic analysis components
     this.semanticSplitter = new SemanticSplitter({
       maxChunkSize: 2000,
       includeContext: true,
       groupRelated: true,
       minFunctionSize: 50
     });
+
+    this.vectorStore = new SimpleVectorStore({
+      modelName: 'Xenova/all-MiniLM-L6-v2',
+      collectionName: 'code-chunks'
+    });
+
     this.semanticCache = null;
     this.lastSemanticAnalysis = null;
+    this.vectorStoreInitialized = false;
+
+    // Create semantic analysis manager object for API router
+    this.semanticAnalysisManager = {
+      getSemanticAnalysis: () => this.getSemanticAnalysis(),
+      refreshSemanticAnalysis: () => this.refreshSemanticAnalysis(),
+      exportSemanticChunk: (chunkName) => this.exportSemanticChunk(chunkName),
+      lastSemanticAnalysis: this.lastSemanticAnalysis
+    };
+
+    // Create activity manager placeholder
+    this.activityManager = {
+      loadActivities: () => this.loadActivities(),
+      executeActivity: (id) => this.executeActivity(id),
+      stopActivity: (id) => this.stopActivity(id)
+    };
+
+    // Initialize API router with all managers
+    this.apiRouter = new APIRouter(
+      this.configManager,
+      this.bundleManager,
+      this.fileSystemManager,
+      this.semanticAnalysisManager,
+      this.vectorStore,
+      this.activityManager
+    );
+
+    // Add references for cross-module communication
+    this.bundleManager.fileSystemManager = this.fileSystemManager;
+    this.apiRouter.mcpServerStarted = this.mcpServerStarted;
   }
+
+  // === Initialization ===
 
   init() {
     if (!existsSync(this.CNTX_DIR)) mkdirSync(this.CNTX_DIR, { recursive: true });
-    this.loadConfig();
-    this.loadHiddenFilesConfig();
-    this.loadIgnorePatterns();
-    this.loadBundleStates();
+    
+    // Initialize configuration
+    this.configManager.loadConfig();
+    this.configManager.loadHiddenFilesConfig();
+    this.configManager.loadIgnorePatterns();
+    this.configManager.loadBundleStates();
+    
+    // Set ignore patterns on file system manager
+    this.fileSystemManager.setIgnorePatterns(this.configManager.getIgnorePatterns());
+    
+    // Load semantic cache
+    const cacheData = this.configManager.loadSemanticCache();
+    if (cacheData) {
+      this.semanticCache = cacheData.analysis;
+      this.lastSemanticAnalysis = cacheData.timestamp;
+    }
+    
+    // Start file watching
     this.startWatching();
-    this.generateAllBundles();
+    
+    // Generate bundles
+    this.bundleManager.generateAllBundles();
   }
 
-  loadConfig() {
-    // Clear existing bundles to ensure deleted ones are removed
-    this.bundles.clear();
-
-    if (existsSync(this.CONFIG_FILE)) {
-      const config = JSON.parse(readFileSync(this.CONFIG_FILE, 'utf8'));
-      Object.entries(config.bundles || {}).forEach(([name, patterns]) => {
-        this.bundles.set(name, {
-          patterns: Array.isArray(patterns) ? patterns : [patterns],
-          files: [],
-          content: '',
-          changed: false,
-          lastGenerated: null,
-          size: 0
-        });
-      });
-    }
-
-    if (!this.bundles.has('master')) {
-      this.bundles.set('master', {
-        patterns: ['**/*'],
-        files: [],
-        content: '',
-        changed: false,
-        lastGenerated: null,
-        size: 0
-      });
-    }
-  }
-
-  loadHiddenFilesConfig() {
-    if (existsSync(this.HIDDEN_FILES_CONFIG)) {
-      try {
-        const config = JSON.parse(readFileSync(this.HIDDEN_FILES_CONFIG, 'utf8'));
-        this.hiddenFilesConfig = { ...this.hiddenFilesConfig, ...config };
-      } catch (e) {
-        if (!this.isQuietMode) console.warn('Could not load hidden files config:', e.message);
-      }
-    }
-  }
-
-  saveHiddenFilesConfig() {
-    try {
-      writeFileSync(this.HIDDEN_FILES_CONFIG, JSON.stringify(this.hiddenFilesConfig, null, 2));
-    } catch (e) {
-      if (!this.isQuietMode) console.error('Failed to save hidden files config:', e.message);
-    }
-  }
-
-  isFileHidden(filePath, bundleName = null) {
-    // Check global hidden files
-    if (this.hiddenFilesConfig.globalHidden.includes(filePath)) {
-      return true;
-    }
-
-    // Check bundle-specific hidden files
-    if (bundleName && this.hiddenFilesConfig.bundleSpecific[bundleName]) {
-      return this.hiddenFilesConfig.bundleSpecific[bundleName].includes(filePath);
-    }
-
-    return false;
-  }
-
-  toggleFileVisibility(filePath, bundleName = null, forceHide = null) {
-    if (bundleName) {
-      // Bundle-specific hiding
-      if (!this.hiddenFilesConfig.bundleSpecific[bundleName]) {
-        this.hiddenFilesConfig.bundleSpecific[bundleName] = [];
-      }
-
-      const bundleHidden = this.hiddenFilesConfig.bundleSpecific[bundleName];
-      const isCurrentlyHidden = bundleHidden.includes(filePath);
-
-      if (forceHide === null) {
-        // Toggle current state
-        if (isCurrentlyHidden) {
-          this.hiddenFilesConfig.bundleSpecific[bundleName] = bundleHidden.filter(f => f !== filePath);
-        } else {
-          bundleHidden.push(filePath);
-        }
-      } else {
-        // Force to specific state
-        if (forceHide && !isCurrentlyHidden) {
-          bundleHidden.push(filePath);
-        } else if (!forceHide && isCurrentlyHidden) {
-          this.hiddenFilesConfig.bundleSpecific[bundleName] = bundleHidden.filter(f => f !== filePath);
-        }
-      }
-    } else {
-      // Global hiding
-      const isCurrentlyHidden = this.hiddenFilesConfig.globalHidden.includes(filePath);
-
-      if (forceHide === null) {
-        // Toggle current state
-        if (isCurrentlyHidden) {
-          this.hiddenFilesConfig.globalHidden = this.hiddenFilesConfig.globalHidden.filter(f => f !== filePath);
-        } else {
-          this.hiddenFilesConfig.globalHidden.push(filePath);
-        }
-      } else {
-        // Force to specific state
-        if (forceHide && !isCurrentlyHidden) {
-          this.hiddenFilesConfig.globalHidden.push(filePath);
-        } else if (!forceHide && isCurrentlyHidden) {
-          this.hiddenFilesConfig.globalHidden = this.hiddenFilesConfig.globalHidden.filter(f => f !== filePath);
-        }
-      }
-    }
-
-    this.saveHiddenFilesConfig();
-  }
-
-  bulkToggleFileVisibility(filePaths, bundleName = null, forceHide = null) {
-    filePaths.forEach(filePath => {
-      this.toggleFileVisibility(filePath, bundleName, forceHide);
-    });
-  }
-
-  addUserIgnorePattern(pattern) {
-    if (!this.hiddenFilesConfig.userIgnorePatterns.includes(pattern)) {
-      this.hiddenFilesConfig.userIgnorePatterns.push(pattern);
-      this.saveHiddenFilesConfig();
-      this.loadIgnorePatterns();
-      this.generateAllBundles();
-      return true;
-    }
-    return false;
-  }
-
-  removeUserIgnorePattern(pattern) {
-    const index = this.hiddenFilesConfig.userIgnorePatterns.indexOf(pattern);
-    if (index > -1) {
-      this.hiddenFilesConfig.userIgnorePatterns.splice(index, 1);
-      this.saveHiddenFilesConfig();
-      this.loadIgnorePatterns();
-      this.generateAllBundles();
-      return true;
-    }
-    return false;
-  }
-
-  toggleSystemIgnorePattern(pattern) {
-    const index = this.hiddenFilesConfig.disabledSystemPatterns.indexOf(pattern);
-    if (index > -1) {
-      // Re-enable the pattern
-      this.hiddenFilesConfig.disabledSystemPatterns.splice(index, 1);
-    } else {
-      // Disable the pattern
-      this.hiddenFilesConfig.disabledSystemPatterns.push(pattern);
-    }
-
-    this.saveHiddenFilesConfig();
-    this.loadIgnorePatterns();
-    this.generateAllBundles();
-  }
-
-  loadIgnorePatterns() {
-    const systemPatterns = [
-      // Version control
-      '**/.git/**',
-      '**/.svn/**',
-      '**/.hg/**',
-
-      // Dependencies
-      '**/node_modules/**',
-      '**/vendor/**',
-      '**/.pnp/**',
-
-      // Build outputs
-      '**/dist/**',
-      '**/build/**',
-      '**/out/**',
-      '**/.next/**',
-      '**/.nuxt/**',
-      '**/target/**',
-
-      // Package files
-      '**/*.tgz',
-      '**/*.tar.gz',
-      '**/*.zip',
-      '**/*.rar',
-      '**/*.7z',
-
-      // Logs
-      '**/*.log',
-      '**/logs/**',
-
-      // Cache directories
-      '**/.cache/**',
-      '**/.parcel-cache/**',
-      '**/.nyc_output/**',
-      '**/coverage/**',
-      '**/.pytest_cache/**',
-      '**/__pycache__/**',
-
-      // IDE/Editor files
-      '**/.vscode/**',
-      '**/.idea/**',
-      '**/*.swp',
-      '**/*.swo',
-      '**/*~',
-
-      // OS files
-      '**/.DS_Store',
-      '**/Thumbs.db',
-      '**/desktop.ini',
-
-      // Environment files
-      '**/.env',
-      '**/.env.local',
-      '**/.env.*.local',
-
-      // Lock files
-      '**/package-lock.json',
-      '**/yarn.lock',
-      '**/pnpm-lock.yaml',
-      '**/Cargo.lock',
-
-      // cntx-ui specific
-      '**/.cntx/**'
-    ];
-
-    // Read from .cntxignore file
-    let filePatterns = [];
-    if (existsSync(this.IGNORE_FILE)) {
-      filePatterns = readFileSync(this.IGNORE_FILE, 'utf8')
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
-    }
-
-    // Combine all patterns
-    this.ignorePatterns = [
-      // System patterns (filtered by disabled list)
-      ...systemPatterns.filter(pattern =>
-        !this.hiddenFilesConfig.disabledSystemPatterns.includes(pattern)
-      ),
-      // File patterns
-      ...filePatterns.filter(pattern =>
-        !systemPatterns.includes(pattern) &&
-        !this.hiddenFilesConfig.userIgnorePatterns.includes(pattern)
-      ),
-      // User-added patterns
-      ...this.hiddenFilesConfig.userIgnorePatterns
-    ];
-
-    // Update .cntxignore file with current patterns
-    const allPatterns = [
-      '# System patterns',
-      ...systemPatterns.map(pattern =>
-        this.hiddenFilesConfig.disabledSystemPatterns.includes(pattern)
-          ? `# ${pattern}`
-          : pattern
-      ),
-      '',
-      '# User patterns',
-      ...this.hiddenFilesConfig.userIgnorePatterns,
-      '',
-      '# File-specific patterns (edit manually)',
-      ...filePatterns.filter(pattern =>
-        !systemPatterns.includes(pattern) &&
-        !this.hiddenFilesConfig.userIgnorePatterns.includes(pattern)
-      )
-    ];
-
-    writeFileSync(this.IGNORE_FILE, allPatterns.join('\n'));
-  }
-
-  loadBundleStates() {
-    if (existsSync(this.BUNDLES_FILE)) {
-      try {
-        const savedBundles = JSON.parse(readFileSync(this.BUNDLES_FILE, 'utf8'));
-        Object.entries(savedBundles).forEach(([name, data]) => {
-          if (this.bundles.has(name)) {
-            const bundle = this.bundles.get(name);
-            bundle.content = data.content || '';
-            bundle.lastGenerated = data.lastGenerated;
-            bundle.size = data.size || 0;
-          }
-        });
-      } catch (e) {
-        if (!this.isQuietMode) console.warn('Could not load bundle states:', e.message);
-      }
-    }
-  }
-
-  saveBundleStates() {
-    const bundleStates = {};
-    this.bundles.forEach((bundle, name) => {
-      bundleStates[name] = {
-        content: bundle.content,
-        lastGenerated: bundle.lastGenerated,
-        size: bundle.size
-      };
-    });
-    writeFileSync(this.BUNDLES_FILE, JSON.stringify(bundleStates, null, 2));
-  }
-
-  // Cursor Rules Methods
-  loadCursorRules() {
-    if (existsSync(this.CURSOR_RULES_FILE)) {
-      return readFileSync(this.CURSOR_RULES_FILE, 'utf8');
-    }
-    return this.getDefaultCursorRules();
-  }
-
-  getDefaultCursorRules() {
-    // Get project info for context
-    let projectInfo = { name: 'unknown', description: '', type: 'general' };
-    const pkgPath = join(this.CWD, 'package.json');
-
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        projectInfo = {
-          name: pkg.name || 'unknown',
-          description: pkg.description || '',
-          type: this.detectProjectType(pkg)
-        };
-      } catch (e) {
-        // Use defaults
-      }
-    }
-
-    return this.generateCursorRulesTemplate(projectInfo);
-  }
-
-  detectProjectType(pkg) {
-    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-
-    if (deps.react || deps['@types/react']) return 'react';
-    if (deps.vue || deps['@vue/cli']) return 'vue';
-    if (deps.angular || deps['@angular/core']) return 'angular';
-    if (deps.express || deps.fastify || deps.koa) return 'node';
-    if (deps.next || deps.nuxt || deps.gatsby) return 'fullstack';
-    if (deps.typescript || deps['@types/node']) return 'typescript';
-    if (pkg.type === 'module' || deps.vite || deps.webpack) return 'modern-js';
-
-    return 'general';
-  }
-
-  generateCursorRulesTemplate(projectInfo) {
-    const bundlesList = Array.from(this.bundles.keys()).join(', ');
-
-    const templates = {
-      react: `# ${projectInfo.name} - React Project Rules
-
-## Project Context
-- **Project**: ${projectInfo.name}
-- **Type**: React Application
-- **Description**: ${projectInfo.description}
-
-## Development Guidelines
-
-### Code Style
-- Use TypeScript for all new components
-- Prefer functional components with hooks
-- Use Tailwind CSS for styling
-- Follow React best practices and hooks rules
-
-### File Organization
-- Components in \`src/components/\`
-- Custom hooks in \`src/hooks/\`
-- Utilities in \`src/lib/\`
-- Types in \`src/types/\`
-
-### Naming Conventions
-- PascalCase for components
-- camelCase for functions and variables
-- kebab-case for files and folders
-- Use descriptive, meaningful names
-
-### Bundle Context
-This project uses cntx-ui for file bundling. Current bundles: ${bundlesList}
-- **ui**: React components and styles
-- **api**: API routes and utilities  
-- **config**: Configuration files
-- **docs**: Documentation
-
-### AI Assistant Instructions
-- When suggesting code changes, consider the current bundle structure
-- Prioritize TypeScript and modern React patterns
-- Suggest Tailwind classes for styling
-- Keep components focused and reusable
-- Always include proper TypeScript types
-- Consider bundle organization when suggesting file locations
-
-## Custom Rules
-Add your specific project rules and preferences below:
-
-### Team Preferences
-- [Add team coding standards]
-- [Add preferred libraries/frameworks]
-- [Add project-specific guidelines]
-
-### Architecture Notes
-- [Document key architectural decisions]
-- [Note important patterns to follow]
-- [List critical dependencies]
-`,
-
-      node: `# ${projectInfo.name} - Node.js Project Rules
-
-## Project Context
-- **Project**: ${projectInfo.name}
-- **Type**: Node.js Backend
-- **Description**: ${projectInfo.description}
-
-## Development Guidelines
-
-### Code Style
-- Use ES modules (import/export)
-- TypeScript preferred for type safety
-- Follow Node.js best practices
-- Use async/await over promises
-
-### File Organization
-- Routes in \`src/routes/\`
-- Middleware in \`src/middleware/\`
-- Models in \`src/models/\`
-- Utilities in \`src/utils/\`
-
-### Bundle Context
-This project uses cntx-ui for file bundling. Current bundles: ${bundlesList}
-- **api**: Core API logic and routes
-- **config**: Environment and configuration
-- **docs**: API documentation
-
-### AI Assistant Instructions
-- Focus on scalable backend architecture
-- Suggest proper error handling
-- Consider security best practices
-- Optimize for performance and maintainability
-- Consider bundle organization when suggesting file locations
-
-## Custom Rules
-Add your specific project rules and preferences below:
-
-### Team Preferences
-- [Add team coding standards]
-- [Add preferred libraries/frameworks]
-- [Add project-specific guidelines]
-
-### Architecture Notes
-- [Document key architectural decisions]
-- [Note important patterns to follow]
-- [List critical dependencies]
-`,
-
-      general: `# ${projectInfo.name} - Project Rules
-
-## Project Context
-- **Project**: ${projectInfo.name}
-- **Description**: ${projectInfo.description}
-
-## Development Guidelines
-
-### Code Quality
-- Write clean, readable code
-- Follow consistent naming conventions
-- Add comments for complex logic
-- Maintain proper file organization
-
-### Bundle Management
-This project uses cntx-ui for intelligent file bundling. Current bundles: ${bundlesList}
-- **master**: Complete project overview
-- **config**: Configuration and setup files
-- **docs**: Documentation and README files
-
-### AI Assistant Instructions
-- When helping with code, consider the project structure
-- Suggest improvements for maintainability
-- Follow established patterns in the codebase
-- Help optimize bundle configurations when needed
-- Consider bundle organization when suggesting file locations
-
-## Custom Rules
-Add your specific project rules and preferences below:
-
-### Team Preferences
-- [Add team coding standards]
-- [Add preferred libraries/frameworks]
-- [Add project-specific guidelines]
-
-### Architecture Notes
-- [Document key architectural decisions]
-- [Note important patterns to follow]
-- [List critical dependencies]
-`
-    };
-
-    return templates[projectInfo.type] || templates.general;
-  }
-
-  saveCursorRules(content) {
-    writeFileSync(this.CURSOR_RULES_FILE, content, 'utf8');
-  }
-
-  loadClaudeMd() {
-    if (existsSync(this.CLAUDE_MD_FILE)) {
-      return readFileSync(this.CLAUDE_MD_FILE, 'utf8');
-    }
-    return this.getDefaultClaudeMd();
-  }
-
-  getDefaultClaudeMd() {
-    // Get project info for context
-    let projectInfo = { name: 'unknown', description: '', type: 'general' };
-    const pkgPath = join(this.CWD, 'package.json');
-
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        projectInfo = {
-          name: pkg.name || 'unknown',
-          description: pkg.description || '',
-          type: this.detectProjectType(pkg)
-        };
-      } catch (e) {
-        // Use defaults if package.json is invalid
-      }
-    }
-
-    return this.generateClaudeMdTemplate(projectInfo);
-  }
-
-  generateClaudeMdTemplate(projectInfo) {
-    const { name, description, type } = projectInfo;
-
-    let template = `# ${name}
-
-${description ? `${description}\n\n` : ''}## Project Structure
-
-This project uses cntx-ui for bundle management and AI context organization.
-
-### Bundles
-
-`;
-
-    // Add bundle information
-    this.bundles.forEach((bundle, bundleName) => {
-      template += `- **${bundleName}**: ${bundle.files.length} files\n`;
-    });
-
-    template += `
-### Development Guidelines
-
-- Follow the existing code style and patterns
-- Use TypeScript for type safety
-- Write meaningful commit messages
-- Test changes thoroughly
-
-### Key Files
-
-- \`.cntx/config.json\` - Bundle configuration
-- \`.cursorrules\` - AI assistant rules
-- \`CLAUDE.md\` - Project context for Claude
-`;
-
-    if (type === 'react') {
-      template += `
-### React Specific
-
-- Use functional components with hooks
-- Follow React best practices
-- Use TypeScript interfaces for props
-`;
-    } else if (type === 'node') {
-      template += `
-### Node.js Specific
-
-- Use ES modules (import/export)
-- Follow async/await patterns
-- Proper error handling
-`;
-    }
-
-    return template;
-  }
-
-  saveClaudeMd(content) {
-    writeFileSync(this.CLAUDE_MD_FILE, content, 'utf8');
-  }
-
-  shouldIgnoreFile(filePath) {
-    const relativePath = relative(this.CWD, filePath).replace(/\\\\/g, '/');
-
-    // Hard-coded critical ignores
-    if (relativePath.startsWith('node_modules/')) return true;
-    if (relativePath.startsWith('.git/')) return true;
-    if (relativePath.startsWith('.cntx/')) return true;
-
-    return this.ignorePatterns.some(pattern => this.matchesPattern(relativePath, pattern));
-  }
-
-  matchesPattern(path, pattern) {
-    if (pattern === '**/*') return true;
-    if (pattern === '*') return !path.includes('/');
-    if (pattern === path) return true;
-
-    let regexPattern = pattern
-      .replace(/\\/g, '/')
-      .replace(/\./g, '\\.')
-      .replace(/\?/g, '.');
-
-    regexPattern = regexPattern.replace(/\*\*/g, 'DOUBLESTAR');
-    regexPattern = regexPattern.replace(/\*/g, '[^/]*');
-    regexPattern = regexPattern.replace(/DOUBLESTAR/g, '.*');
-
-    try {
-      const regex = new RegExp('^' + regexPattern + '$');
-      return regex.test(path);
-    } catch (e) {
-      if (!this.isQuietMode) console.log(`Regex error for pattern "${pattern}": ${e.message}`);
-      return false;
-    }
-  }
-
-  shouldIgnoreAnything(itemName, fullPath) {
-    // DIRECTORY NAME IGNORES (anywhere in the project)
-    const badDirectories = [
-      'node_modules',
-      '.git',
-      '.svn',
-      '.hg',
-      'vendor',
-      '__pycache__',
-      '.pytest_cache',
-      '.venv',
-      'venv',
-      'env',
-      '.env',
-      'dist',
-      'build',
-      'out',
-      '.next',
-      '.nuxt',
-      'coverage',
-      '.nyc_output',
-      '.cache',
-      '.parcel-cache',
-      '.vercel',
-      '.netlify',
-      'tmp',
-      'temp',
-      '.tmp',
-      '.temp',
-      'logs',
-      '*.egg-info',
-      '.cntx'
-    ];
-
-    if (badDirectories.includes(itemName)) {
-      return true;
-    }
-
-    // FILE EXTENSION IGNORES
-    const badExtensions = [
-      // Logs
-      '.log', '.logs',
-      // OS files
-      '.DS_Store', '.Thumbs.db', 'desktop.ini',
-      // Editor files
-      '.vscode', '.idea', '*.swp', '*.swo', '*~',
-      // Media files (large and useless for AI)
-      '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.svg',
-      '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv',
-      '.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma',
-      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-      '.zip', '.tar', '.gz', '.rar', '.7z', '.bz2',
-      '.exe', '.dll', '.so', '.dylib', '.app', '.dmg', '.pkg',
-      // Cache/temp files
-      '.cache', '.tmp', '.temp', '.lock',
-      // Compiled files
-      '.pyc', '.pyo', '.class', '.o', '.obj', '.a', '.lib'
-    ];
-
-    const fileExt = extname(itemName).toLowerCase();
-    if (badExtensions.includes(fileExt)) {
-      return true;
-    }
-
-    // FILE NAME PATTERNS
-    const badFilePatterns = [
-      /^\..*/, // Hidden files starting with .
-      /.*\.lock$/, // Lock files
-      /.*\.min\.js$/, // Minified JS
-      /.*\.min\.css$/, // Minified CSS
-      /.*\.map$/, // Source maps
-      /package-lock\.json$/,
-      /yarn\.lock$/,
-      /pnpm-lock\.yaml$/,
-      /Thumbs\.db$/,
-      /\.DS_Store$/
-    ];
-
-    if (badFilePatterns.some(pattern => pattern.test(itemName))) {
-      return true;
-    }
-
-    // PATH-BASED IGNORES (from your .cntxignore)
-    return this.ignorePatterns.some(pattern => this.matchesPattern(fullPath, pattern));
-  }
-
-  getAllFiles(dir = this.CWD, files = []) {
-    try {
-      const items = readdirSync(dir);
-      for (const item of items) {
-        const fullPath = join(dir, item);
-        const relativePath = relative(this.CWD, fullPath).replace(/\\\\/g, '/');
-
-        // BULLETPROOF IGNORES - check directory/file names directly
-        const shouldIgnore = this.shouldIgnoreAnything(item, relativePath);
-
-        if (shouldIgnore) {
-          continue; // Don't even log it, just skip
-        }
-
-        const stat = statSync(fullPath);
-        if (stat.isDirectory()) {
-          this.getAllFiles(fullPath, files);
-        } else {
-          files.push(relativePath);
-        }
-      }
-    } catch (e) {
-      // Skip directories we can't read
-    }
-
-    return files;
-  }
+  // === File Watching ===
 
   startWatching() {
-    const watcher = watch(this.CWD, { recursive: true }, (eventType, filename) => {
-      if (filename && !this.isScanning) {
-        const fullPath = join(this.CWD, filename);
-        if (!this.shouldIgnoreFile(fullPath)) {
-          if (!this.isQuietMode) console.log(`File ${eventType}: ${filename}`);
-          this.markBundlesChanged(filename.replace(/\\\\/g, '/'));
-          this.invalidateSemanticCache(); // Invalidate semantic cache on file changes
-          this.broadcastUpdate();
-        }
+    this.fileSystemManager.startWatching((eventType, filename) => {
+      if (!this.isQuietMode) {
+        console.log(`📁 File ${eventType}: ${filename}`);
       }
-    });
-    this.watchers.push(watcher);
-  }
-
-  getFileTree() {
-    const allFiles = this.getAllFiles();
-    const fileData = allFiles.map(file => {
-      const fullPath = join(this.CWD, file);
-      try {
-        const stat = statSync(fullPath);
-        return {
-          path: file,
-          size: stat.size,
-          modified: stat.mtime
-        };
-      } catch (e) {
-        return {
-          path: file,
-          size: 0,
-          modified: new Date()
-        };
-      }
-    });
-    return fileData;
-  }
-
-  markBundlesChanged(filename) {
-    this.bundles.forEach((bundle, name) => {
-      if (bundle.patterns.some(pattern => this.matchesPattern(filename, pattern))) {
-        bundle.changed = true;
-      }
+      
+      // Mark affected bundles as changed
+      this.bundleManager.markBundlesChanged(filename);
+      
+      // Invalidate semantic cache if needed
+      this.invalidateSemanticCache();
+      
+      // Notify WebSocket clients
+      this.webSocketManager.onFileChanged(filename, eventType);
     });
   }
 
-  generateAllBundles() {
-    this.isScanning = true;
-    if (!this.isQuietMode) console.log('Scanning files and generating bundles...');
+  // === HTTP Server ===
 
-    this.bundles.forEach((bundle, name) => {
-      this.generateBundle(name);
-    });
+  async handleRequest(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
 
-    this.saveBundleStates();
-    this.isScanning = false;
-    if (!this.isQuietMode) console.log('Bundle generation complete');
-  }
-
-  generateBundle(name) {
-    const bundle = this.bundles.get(name);
-    if (!bundle) return;
-
-    if (!this.isQuietMode) console.log(`Generating bundle: ${name}`);
-    const allFiles = this.getAllFiles();
-
-    // Filter files by bundle patterns
-    let bundleFiles = allFiles.filter(file =>
-      bundle.patterns.some(pattern => this.matchesPattern(file, pattern))
-    );
-
-    // Remove hidden files
-    bundleFiles = bundleFiles.filter(file => !this.isFileHidden(file, name));
-
-    bundle.files = bundleFiles;
-    bundle.content = this.generateBundleXML(name, bundle.files);
-    bundle.changed = false;
-    bundle.lastGenerated = new Date().toISOString();
-    bundle.size = Buffer.byteLength(bundle.content, 'utf8');
-
-    if (!this.isQuietMode) console.log(`Generated bundle '${name}' with ${bundle.files.length} files (${(bundle.size / 1024).toFixed(1)}kb)`);
-  }
-
-  generateBundleXML(bundleName, files) {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<cntx:bundle xmlns:cntx="https://cntx.dev/schema" name="${bundleName}" generated="${new Date().toISOString()}">
-`;
-
-    // Project information
-    const pkgPath = join(this.CWD, 'package.json');
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        xml += `  <cntx:project>
-    <cntx:name>${this.escapeXml(pkg.name || 'unknown')}</cntx:name>
-    <cntx:version>${pkg.version || '0.0.0'}</cntx:version>
-`;
-        if (pkg.description) xml += `    <cntx:description>${this.escapeXml(pkg.description)}</cntx:description>
-`;
-        xml += `  </cntx:project>
-`;
-      } catch (e) {
-        xml += `  <cntx:project><cntx:error>Could not parse package.json</cntx:error></cntx:project>
-`;
-      }
+    // Add CORS headers for all requests
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
     }
 
-    // Bundle overview section
-    const filesByType = this.categorizeFiles(files);
-    const entryPoints = this.identifyEntryPoints(files);
-
-    xml += `  <cntx:overview>
-    <cntx:purpose>${this.escapeXml(this.getBundlePurpose(bundleName))}</cntx:purpose>
-    <cntx:file-types>
-`;
-
-    Object.entries(filesByType).forEach(([type, typeFiles]) => {
-      xml += `      <cntx:type name="${type}" count="${typeFiles.length}" />
-`;
-    });
-
-    xml += `    </cntx:file-types>
-`;
-
-    if (entryPoints.length > 0) {
-      xml += `    <cntx:entry-points>
-`;
-      entryPoints.forEach(file => {
-        xml += `      <cntx:file>${file}</cntx:file>
-`;
-      });
-      xml += `    </cntx:entry-points>
-`;
-    }
-
-    xml += `  </cntx:overview>
-`;
-
-    // Files organized by type
-    xml += `  <cntx:files count="${files.length}">
-`;
-
-    // Entry points first
-    if (entryPoints.length > 0) {
-      xml += `    <cntx:group type="entry-points" description="Main entry files for this bundle">
-`;
-      entryPoints.forEach(file => {
-        xml += this.generateFileXML(file);
-      });
-      xml += `    </cntx:group>
-`;
-    }
-
-    // Then organize by file type
-    Object.entries(filesByType).forEach(([type, typeFiles]) => {
-      if (type === 'entry-points') return; // Already handled above
-
-      const remainingFiles = typeFiles.filter(file => !entryPoints.includes(file));
-      if (remainingFiles.length > 0) {
-        xml += `    <cntx:group type="${type}" description="${this.getTypeDescription(type)}">
-`;
-        remainingFiles.forEach(file => {
-          xml += this.generateFileXML(file);
-        });
-        xml += `    </cntx:group>
-`;
+    try {
+      // Handle API routes
+      if (url.pathname.startsWith('/api/')) {
+        return await this.apiRouter.handleRequest(req, res, url);
       }
-    });
 
-    xml += `  </cntx:files>
-</cntx:bundle>`;
-    return xml;
+      // Handle static files
+      return this.handleStaticFile(req, res, url);
+
+    } catch (error) {
+      console.error('Request handling error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
   }
 
-  categorizeFiles(files) {
-    const categories = {
-      'components': [],
-      'hooks': [],
-      'utilities': [],
-      'configuration': [],
-      'styles': [],
-      'types': [],
-      'tests': [],
-      'documentation': [],
-      'other': []
-    };
+  handleStaticFile(req, res, url) {
+    const webDir = join(__dirname, 'web', 'dist');
+    let filePath = join(webDir, url.pathname === '/' ? 'index.html' : url.pathname);
 
-    files.forEach(file => {
-      const ext = extname(file).toLowerCase();
-      const basename = file.toLowerCase();
+    // Security check - ensure path is within web directory
+    if (!filePath.startsWith(webDir)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
+    }
 
-      if (basename.includes('component') || file.includes('/components/') ||
-        ext === '.jsx' || ext === '.tsx' && !basename.includes('test')) {
-        categories.components.push(file);
-      } else if (basename.includes('hook') || file.includes('/hooks/')) {
-        categories.hooks.push(file);
-      } else if (basename.includes('util') || file.includes('/utils/') ||
-        basename.includes('helper') || file.includes('/lib/')) {
-        categories.utilities.push(file);
-      } else if (ext === '.json' || basename.includes('config') ||
-        ext === '.yaml' || ext === '.yml' || ext === '.toml') {
-        categories.configuration.push(file);
-      } else if (ext === '.css' || ext === '.scss' || ext === '.less') {
-        categories.styles.push(file);
-      } else if (basename.includes('type') || ext === '.d.ts' ||
-        file.includes('/types/')) {
-        categories.types.push(file);
-      } else if (basename.includes('test') || basename.includes('spec') ||
-        file.includes('/test/') || file.includes('/__tests__/')) {
-        categories.tests.push(file);
-      } else if (ext === '.md' || basename.includes('readme') ||
-        basename.includes('doc')) {
-        categories.documentation.push(file);
+    if (!existsSync(filePath)) {
+      // For SPA routing, serve index.html for non-API routes
+      if (!url.pathname.startsWith('/api/')) {
+        filePath = join(webDir, 'index.html');
       } else {
-        categories.other.push(file);
-      }
-    });
-
-    // Remove empty categories
-    Object.keys(categories).forEach(key => {
-      if (categories[key].length === 0) {
-        delete categories[key];
-      }
-    });
-
-    return categories;
-  }
-
-  identifyEntryPoints(files) {
-    const entryPoints = [];
-
-    files.forEach(file => {
-      const basename = file.toLowerCase();
-
-      // Common entry point patterns
-      if (basename.includes('main.') || basename.includes('index.') ||
-        basename.includes('app.') || basename === 'server.js' ||
-        file.endsWith('/App.tsx') || file.endsWith('/App.jsx') ||
-        file.endsWith('/main.tsx') || file.endsWith('/main.js') ||
-        file.endsWith('/index.tsx') || file.endsWith('/index.js')) {
-        entryPoints.push(file);
-      }
-    });
-
-    return entryPoints;
-  }
-
-  getBundlePurpose(bundleName) {
-    const purposes = {
-      'master': 'Complete project overview with all source files',
-      'frontend': 'User interface components, pages, and client-side logic',
-      'backend': 'Server-side logic, APIs, and backend services',
-      'api': 'API endpoints, routes, and server communication logic',
-      'server': 'Main server application and core backend functionality',
-      'components': 'Reusable UI components and interface elements',
-      'ui-components': 'User interface components and design system elements',
-      'config': 'Configuration files, settings, and environment setup',
-      'docs': 'Documentation, README files, and project guides',
-      'utils': 'Utility functions, helpers, and shared libraries',
-      'types': 'TypeScript type definitions and interfaces',
-      'tests': 'Test files, test utilities, and testing configuration'
-    };
-
-    return purposes[bundleName] || `Bundle containing ${bundleName}-related files`;
-  }
-
-  getTypeDescription(type) {
-    const descriptions = {
-      'components': 'React/UI components and interface elements',
-      'hooks': 'Custom React hooks and state management',
-      'utilities': 'Helper functions, utilities, and shared libraries',
-      'configuration': 'Configuration files, settings, and build configs',
-      'styles': 'CSS, SCSS, and styling files',
-      'types': 'TypeScript type definitions and interfaces',
-      'tests': 'Test files and testing utilities',
-      'documentation': 'README files, docs, and guides',
-      'other': 'Additional project files'
-    };
-
-    return descriptions[type] || `Files categorized as ${type}`;
-  }
-
-  generateFileXML(file) {
-    const fullPath = join(this.CWD, file);
-    let fileXml = `      <cntx:file path="${file}" ext="${extname(file)}">
-`;
-
-    try {
-      const stat = statSync(fullPath);
-      const content = readFileSync(fullPath, 'utf8');
-
-      // Add role indicator for certain files
-      const role = this.getFileRole(file);
-      const roleAttr = role ? ` role="${role}"` : '';
-
-      fileXml = `      <cntx:file path="${file}" ext="${extname(file)}"${roleAttr}>
-`;
-      fileXml += `        <cntx:meta size="${stat.size}" modified="${stat.mtime.toISOString()}" lines="${content.split('\n').length}" />
-        <cntx:content><![CDATA[${content}]]></cntx:content>
-`;
-    } catch (e) {
-      fileXml += `        <cntx:error>Could not read file: ${e.message}</cntx:error>
-`;
-    }
-
-    fileXml += `      </cntx:file>
-`;
-    return fileXml;
-  }
-
-  getFileRole(file) {
-    const basename = file.toLowerCase();
-
-    if (basename.includes('main.') || basename.includes('index.')) return 'entry-point';
-    if (basename.includes('app.')) return 'main-component';
-    if (file === 'server.js') return 'server-entry';
-    if (basename.includes('config')) return 'configuration';
-    if (basename.includes('package.json')) return 'package-config';
-    if (basename.includes('readme')) return 'documentation';
-
-    return null;
-  }
-
-  escapeXml(text) {
-    return String(text)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
-  }
-
-  getFileStats(filePath) {
-    try {
-      const fullPath = join(this.CWD, filePath);
-      const stat = statSync(fullPath);
-      return {
-        size: stat.size,
-        mtime: stat.mtime
-      };
-    } catch (e) {
-      return {
-        size: 0,
-        mtime: new Date()
-      };
-    }
-  }
-
-  getFileListWithVisibility(bundleName = null) {
-    const allFiles = this.getAllFiles();
-
-    return allFiles.map(filePath => {
-      const fileStats = this.getFileStats(filePath);
-      const isGloballyHidden = this.hiddenFilesConfig.globalHidden.includes(filePath);
-      const bundleHidden = bundleName ? this.isFileHidden(filePath, bundleName) : false;
-
-      // Determine which bundles this file appears in
-      const inBundles = [];
-      this.bundles.forEach((bundle, name) => {
-        const matchesPattern = bundle.patterns.some(pattern => this.matchesPattern(filePath, pattern));
-        const notHidden = !this.isFileHidden(filePath, name);
-        if (matchesPattern && notHidden) {
-          inBundles.push(name);
-        }
-      });
-
-      return {
-        path: filePath,
-        size: fileStats.size,
-        modified: fileStats.mtime,
-        visible: !isGloballyHidden && !bundleHidden,
-        globallyHidden: isGloballyHidden,
-        bundleHidden: bundleHidden,
-        inBundles: inBundles,
-        matchesIgnorePattern: this.shouldIgnoreFile(join(this.CWD, filePath))
-      };
-    });
-  }
-
-  startServer(port = 3333) {
-    const server = createServer((req, res) => {
-      const url = new URL(req.url, `http://localhost:${port}`);
-
-      // CORS headers for ALL requests - MUST be first
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      res.setHeader('Access-Control-Max-Age', '86400');
-
-      // Handle preflight OPTIONS requests
-      if (req.method === 'OPTIONS') {
-        res.writeHead(200);
-        res.end();
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
         return;
       }
+    }
 
-      // Serve static files for web interface
-      if (url.pathname === '/' || url.pathname.startsWith('/assets/') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.ico')) {
-        const webDistPath = path.join(__dirname, 'web', 'dist');
-
-        if (url.pathname === '/') {
-          // Serve index.html for root
-          const indexPath = path.join(webDistPath, 'index.html');
-          if (existsSync(indexPath)) {
-            try {
-              const content = readFileSync(indexPath, 'utf8');
-              res.writeHead(200, { 'Content-Type': 'text/html' });
-              res.end(content);
-              return;
-            } catch (e) {
-              if (!this.isQuietMode) console.error('Error serving index.html:', e);
-            }
-          }
-
-          // Fallback if no web interface built
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>cntx-ui Server</title>
-              <style>
-                body { font-family: system-ui, sans-serif; margin: 40px; }
-                .container { max-width: 600px; }
-                .api-link { background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0; }
-                code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <h1>🚀 cntx-ui Server Running</h1>
-                <p>Your cntx-ui server is running successfully!</p>
-                
-                <h2>Available APIs:</h2>
-                <div class="api-link">
-                  <strong>Bundles:</strong> <a href="/api/bundles">/api/bundles</a>
-                </div>
-                <div class="api-link">
-                  <strong>Configuration:</strong> <a href="/api/config">/api/config</a>
-                </div>
-                <div class="api-link">
-                  <strong>Files:</strong> <a href="/api/files">/api/files</a>
-                </div>
-                <div class="api-link">
-                  <strong>Status:</strong> <a href="/api/status">/api/status</a>
-                </div>
-                
-                <h2>Web Interface:</h2>
-                <p>The web interface is not available because it wasn't built when this package was published.</p>
-                <p>To enable the web interface, the package maintainer needs to run:</p>
-                <pre><code>cd web && npm install && npm run build</code></pre>
-                
-                <h2>CLI Usage:</h2>
-                <p>You can still use all CLI commands:</p>
-                <ul>
-                  <li><code>cntx-ui status</code> - Check current status</li>
-                  <li><code>cntx-ui bundle master</code> - Generate specific bundle</li>
-                  <li><code>cntx-ui init</code> - Initialize configuration</li>
-                </ul>
-              </div>
-            </body>
-          </html>
-        `);
-          return;
-        } else {
-          // Serve other static assets
-          const filePath = path.join(webDistPath, url.pathname);
-          if (existsSync(filePath)) {
-            try {
-              const content = readFileSync(filePath);
-              const contentType = getContentType(filePath);
-              res.writeHead(200, { 'Content-Type': contentType });
-              res.end(content);
-              return;
-            } catch (e) {
-              if (!this.isQuietMode) console.error('Error serving static file:', e);
-            }
-          }
-        }
-      }
-
-      // API Routes
-      console.log('🔍 Processing API request:', url.pathname);
-
-      if (url.pathname === '/api/bundles') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        const bundleData = Array.from(this.bundles.entries()).map(([name, bundle]) => ({
-          name,
-          changed: bundle.changed,
-          fileCount: bundle.files.length,
-          content: bundle.content.substring(0, 5000) + (bundle.content.length > 5000 ? '...' : ''),
-          files: bundle.files,
-          lastGenerated: bundle.lastGenerated,
-          size: bundle.size
-        }));
-        res.end(JSON.stringify(bundleData));
-
-      } else if (url.pathname === '/api/semantic-chunks') {
-        console.log('🔍 Semantic chunks route matched! URL:', url.pathname);
-        this.getSemanticAnalysis()
-          .then(analysis => {
-            console.log('✅ Semantic analysis successful');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(analysis));
-          })
-          .catch(error => {
-            console.error('❌ Semantic analysis failed:', error.message);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: error.message }));
-          });
-
-      } else if (url.pathname === '/api/semantic-chunks/export') {
-        if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { chunkName } = JSON.parse(body);
-              this.exportSemanticChunk(chunkName)
-                .then(xmlContent => {
-                  res.writeHead(200, { 'Content-Type': 'application/xml' });
-                  res.end(xmlContent);
-                })
-                .catch(error => {
-                  res.writeHead(500, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ error: error.message }));
-                });
-            } catch (error) {
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: error.message }));
-            }
-          });
-        } else {
-          res.writeHead(405);
-          res.end('Method not allowed');
-        }
-
-      } else if (url.pathname === '/api/bundles-from-chunk') {
-        if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { chunkName, files } = JSON.parse(body);
-              this.createBundleFromChunk(chunkName, files)
-                .then(() => {
-                  res.writeHead(200, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ success: true }));
-                })
-                .catch(error => {
-                  res.writeHead(500, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ error: error.message }));
-                });
-            } catch (error) {
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: error.message }));
-            }
-          });
-        } else {
-          res.writeHead(405);
-          res.end('Method not allowed');
-        }
-
-      } else if (url.pathname.startsWith('/api/bundles/')) {
-        const bundleName = url.pathname.split('/').pop();
-        const bundle = this.bundles.get(bundleName);
-        if (bundle) {
-          res.writeHead(200, { 'Content-Type': 'application/xml' });
-          res.end(bundle.content);
-        } else {
-          res.writeHead(404);
-          res.end('Bundle not found');
-        }
-
-      } else if (url.pathname.startsWith('/api/regenerate/')) {
-        const bundleName = url.pathname.split('/').pop();
-        if (this.bundles.has(bundleName)) {
-          this.generateBundle(bundleName);
-          this.saveBundleStates();
-          this.broadcastUpdate();
-          res.writeHead(200);
-          res.end('OK');
-        } else {
-          res.writeHead(404);
-          res.end('Bundle not found');
-        }
-
-      } else if (url.pathname === '/api/files') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        const fileTree = this.getFileTree();
-        res.end(JSON.stringify(fileTree));
-
-      } else if (url.pathname === '/api/config') {
-        if (req.method === 'GET') {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          if (existsSync(this.CONFIG_FILE)) {
-            const config = readFileSync(this.CONFIG_FILE, 'utf8');
-            res.end(config);
-          } else {
-            const defaultConfig = {
-              bundles: {
-                master: ['**/*'],
-                api: ['src/api.js'],
-                ui: ['src/component.jsx', 'src/*.jsx'],
-                config: ['package.json', 'package-lock.json', '*.config.*'],
-                docs: ['README.md', '*.md']
-              }
-            };
-            res.end(JSON.stringify(defaultConfig));
-          }
-        } else if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              if (!this.isQuietMode) console.log('🔍 Received config save request');
-              const config = JSON.parse(body);
-              if (!this.isQuietMode) console.log('📝 Config to save:', JSON.stringify(config, null, 2));
-
-              // Ensure .cntx directory exists
-              if (!existsSync(this.CNTX_DIR)) {
-                if (!this.isQuietMode) console.log('📁 Creating .cntx directory...');
-                mkdirSync(this.CNTX_DIR, { recursive: true });
-              }
-
-              // Write config file
-              if (!this.isQuietMode) console.log('💾 Writing config to:', this.CONFIG_FILE);
-              writeFileSync(this.CONFIG_FILE, JSON.stringify(config, null, 2));
-              if (!this.isQuietMode) console.log('✅ Config file written successfully');
-
-              // Reload configuration
-              this.loadConfig();
-              this.generateAllBundles();
-              this.broadcastUpdate();
-
-              res.writeHead(200, { 'Content-Type': 'text/plain' });
-              res.end('OK');
-              if (!this.isQuietMode) console.log('✅ Config save response sent');
-
-            } catch (e) {
-              if (!this.isQuietMode) console.error('❌ Config save error:', e);
-              res.writeHead(400, { 'Content-Type': 'text/plain' });
-              res.end(`Error: ${e.message}`);
-            }
-          });
-
-          req.on('error', (err) => {
-            if (!this.isQuietMode) console.error('❌ Request error:', err);
-            if (!res.headersSent) {
-              res.writeHead(500, { 'Content-Type': 'text/plain' });
-              res.end('Internal Server Error');
-            }
-          });
-        }
-
-      } else if (url.pathname === '/api/cursor-rules') {
-        if (req.method === 'GET') {
-          res.writeHead(200, { 'Content-Type': 'text/plain' });
-          const rules = this.loadCursorRules();
-          res.end(rules);
-        } else if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { content } = JSON.parse(body);
-              this.saveCursorRules(content);
-              res.writeHead(200);
-              res.end('OK');
-            } catch (e) {
-              res.writeHead(400);
-              res.end('Invalid request');
-            }
-          });
-        }
-
-      } else if (url.pathname === '/api/cursor-rules/templates') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        const templates = {
-          react: this.generateCursorRulesTemplate({ name: 'My React App', description: 'React application', type: 'react' }),
-          node: this.generateCursorRulesTemplate({ name: 'My Node App', description: 'Node.js backend', type: 'node' }),
-          general: this.generateCursorRulesTemplate({ name: 'My Project', description: 'General project', type: 'general' })
-        };
-        res.end(JSON.stringify(templates));
-
-      } else if (url.pathname === '/api/claude-md') {
-        if (req.method === 'GET') {
-          res.writeHead(200, { 'Content-Type': 'text/plain' });
-          const claudeMd = this.loadClaudeMd();
-          res.end(claudeMd);
-        } else if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { content } = JSON.parse(body);
-              this.saveClaudeMd(content);
-              res.writeHead(200);
-              res.end('OK');
-            } catch (e) {
-              res.writeHead(400);
-              res.end('Invalid request');
-            }
-          });
-        }
-
-      } else if (url.pathname === '/api/test-pattern') {
-        if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { pattern } = JSON.parse(body);
-              const allFiles = this.getAllFiles();
-              const matchingFiles = allFiles.filter(file =>
-                this.matchesPattern(file, pattern)
-              );
-
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify(matchingFiles));
-            } catch (e) {
-              res.writeHead(400);
-              res.end('Invalid request');
-            }
-          });
-        } else {
-          res.writeHead(405);
-          res.end('Method not allowed');
-        }
-
-      } else if (url.pathname === '/api/hidden-files') {
-        if (req.method === 'GET') {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          const stats = {
-            totalFiles: this.getAllFiles().length,
-            globallyHidden: this.hiddenFilesConfig.globalHidden.length,
-            bundleSpecificHidden: this.hiddenFilesConfig.bundleSpecific,
-            ignorePatterns: {
-              system: [
-                { pattern: '**/.git/**', active: !this.hiddenFilesConfig.disabledSystemPatterns.includes('**/.git/**') },
-                { pattern: '**/node_modules/**', active: !this.hiddenFilesConfig.disabledSystemPatterns.includes('**/node_modules/**') },
-                { pattern: '**/.cntx/**', active: !this.hiddenFilesConfig.disabledSystemPatterns.includes('**/.cntx/**') }
-              ],
-              user: this.hiddenFilesConfig.userIgnorePatterns,
-              disabled: this.hiddenFilesConfig.disabledSystemPatterns
-            }
-          };
-          res.end(JSON.stringify(stats));
-        } else if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { action, filePath, filePaths, bundleName, forceHide } = JSON.parse(body);
-
-              if (action === 'toggle' && filePath) {
-                this.toggleFileVisibility(filePath, bundleName, forceHide);
-              } else if (action === 'bulk-toggle' && filePaths) {
-                this.bulkToggleFileVisibility(filePaths, bundleName, forceHide);
-              }
-
-              this.generateAllBundles();
-              this.broadcastUpdate();
-
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true }));
-            } catch (e) {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: e.message }));
-            }
-          });
-        }
-
-      } else if (url.pathname === '/api/files-with-visibility') {
-        const bundleName = url.searchParams.get('bundle');
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        const files = this.getFileListWithVisibility(bundleName);
-        res.end(JSON.stringify(files));
-
-      } else if (url.pathname === '/api/ignore-patterns') {
-        if (req.method === 'GET') {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-
-          // Read file patterns
-          let filePatterns = [];
-          if (existsSync(this.IGNORE_FILE)) {
-            filePatterns = readFileSync(this.IGNORE_FILE, 'utf8')
-              .split('\n')
-              .map(line => line.trim())
-              .filter(line => line && !line.startsWith('#'));
-          }
-
-          const systemPatterns = ['**/.git/**', '**/node_modules/**', '**/.cntx/**'];
-
-          const patterns = {
-            system: systemPatterns.map(pattern => ({
-              pattern,
-              active: !this.hiddenFilesConfig.disabledSystemPatterns.includes(pattern)
-            })),
-            user: this.hiddenFilesConfig.userIgnorePatterns.map(pattern => ({ pattern, active: true })),
-            file: filePatterns.filter(pattern =>
-              !systemPatterns.includes(pattern) &&
-              !this.hiddenFilesConfig.userIgnorePatterns.includes(pattern)
-            ).map(pattern => ({ pattern, active: true }))
-          };
-          res.end(JSON.stringify(patterns));
-
-        } else if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { action, pattern } = JSON.parse(body);
-              let success = false;
-
-              switch (action) {
-                case 'add':
-                  success = this.addUserIgnorePattern(pattern);
-                  break;
-                case 'remove':
-                  success = this.removeUserIgnorePattern(pattern);
-                  break;
-                case 'toggle-system':
-                  this.toggleSystemIgnorePattern(pattern);
-                  success = true;
-                  break;
-              }
-
-              this.broadcastUpdate();
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success }));
-            } catch (e) {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: e.message }));
-            }
-          });
-        }
-
-      } else if (url.pathname === '/api/bundle-visibility-stats') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        const stats = {};
-
-        this.bundles.forEach((bundle, bundleName) => {
-          const allFiles = this.getAllFiles();
-          const matchingFiles = allFiles.filter(file =>
-            bundle.patterns.some(pattern => this.matchesPattern(file, pattern))
-          );
-
-          const visibleFiles = matchingFiles.filter(file => !this.isFileHidden(file, bundleName));
-          const hiddenFiles = matchingFiles.length - visibleFiles.length;
-
-          stats[bundleName] = {
-            total: matchingFiles.length,
-            visible: visibleFiles.length,
-            hidden: hiddenFiles,
-            patterns: bundle.patterns
-          };
-        });
-
-        res.end(JSON.stringify(stats));
-
-      } else if (url.pathname.startsWith('/api/bundle-categories/')) {
-        const bundleName = url.pathname.split('/').pop();
-        const bundle = this.bundles.get(bundleName);
-
-        if (bundle) {
-          const filesByType = this.categorizeFiles(bundle.files);
-          const entryPoints = this.identifyEntryPoints(bundle.files);
-
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            purpose: this.getBundlePurpose(bundleName),
-            filesByType,
-            entryPoints,
-            totalFiles: bundle.files.length
-          }));
-        } else {
-          res.writeHead(404);
-          res.end('Bundle not found');
-        }
-
-      } else if (url.pathname === '/api/reset-hidden-files') {
-        if (req.method === 'POST') {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', () => {
-            try {
-              const { scope, bundleName } = JSON.parse(body);
-
-              if (scope === 'global') {
-                this.hiddenFilesConfig.globalHidden = [];
-              } else if (scope === 'bundle' && bundleName) {
-                delete this.hiddenFilesConfig.bundleSpecific[bundleName];
-              } else if (scope === 'all') {
-                this.hiddenFilesConfig.globalHidden = [];
-                this.hiddenFilesConfig.bundleSpecific = {};
-              }
-
-              this.saveHiddenFilesConfig();
-              this.generateAllBundles();
-              this.broadcastUpdate();
-
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true }));
-            } catch (e) {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: e.message }));
-            }
-          });
-        }
-
-      } else if (url.pathname === '/api/mcp-status') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-
-        // Simple check - MCP is available if we can find package.json
-        let isAccessible = true;
-        let testResult = 'available';
-
-        // Check if package.json exists using existing imports
-        try {
-          const packagePath = join(this.CWD, 'package.json');
-          if (existsSync(packagePath)) {
-            testResult = 'local_package_found';
-          } else {
-            testResult = 'using_global_npx';
-          }
-        } catch (error) {
-          testResult = 'check_failed';
-        }
-
-        const mcpStatus = {
-          running: isAccessible,
-          accessible: isAccessible,
-          testResult: testResult,
-          command: 'npx cntx-ui mcp',
-          workingDirectory: this.CWD,
-          lastChecked: new Date().toISOString(),
-          trackingEnabled: this.mcpServerStarted || false
-        };
-        res.end(JSON.stringify(mcpStatus, null, 2));
-
-      } else if (url.pathname === '/api/status') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        const statusInfo = {
-          server: {
-            version: '2.0.8',
-            workingDirectory: this.CWD,
-            startTime: new Date().toISOString(),
-            isScanning: this.isScanning
-          },
-          bundles: {
-            count: this.bundles.size,
-            names: Array.from(this.bundles.keys()),
-            totalFiles: Array.from(this.bundles.values()).reduce((sum, bundle) => sum + bundle.files.length, 0)
-          },
-          mcp: {
-            available: true,
-            serverStarted: this.mcpServerStarted,
-            command: 'npx cntx-ui mcp',
-            setupScript: './examples/claude-mcp-setup.sh'
-          },
-          files: {
-            total: this.getAllFiles().length,
-            hiddenGlobally: this.hiddenFilesConfig.globalHidden.length,
-            ignorePatterns: this.ignorePatterns.length
-          }
-        };
-        res.end(JSON.stringify(statusInfo, null, 2));
-
-      } else {
-        res.writeHead(404);
-        res.end('Not found');
-      }
-    });
-
-    const wss = new WebSocketServer({ server });
-    wss.on('connection', (ws) => {
-      this.clients.add(ws);
-      ws.on('close', () => this.clients.delete(ws));
-      this.sendUpdate(ws);
-    });
-
-    server.listen(port, () => {
-      if (!this.isQuietMode) {
-        console.log(`🚀 cntx-ui API running at http://localhost:${port}`);
-        console.log(`📁 Watching: ${this.CWD}`);
-        console.log(`📦 Bundles: ${Array.from(this.bundles.keys()).join(', ')}`);
-      }
-    });
-
-    return server;
-  }
-
-  broadcastUpdate() {
-    this.clients.forEach(client => this.sendUpdate(client));
-  }
-
-  sendUpdate(client) {
-    if (client.readyState === 1) {
-      const bundleData = Array.from(this.bundles.entries()).map(([name, bundle]) => ({
-        name,
-        changed: bundle.changed,
-        fileCount: bundle.files.length,
-        content: bundle.content.substring(0, 2000) + (bundle.content.length > 2000 ? '...' : ''),
-        files: bundle.files,
-        lastGenerated: bundle.lastGenerated,
-        size: bundle.size
-      }));
-      client.send(JSON.stringify(bundleData));
+    try {
+      const content = readFileSync(filePath);
+      const contentType = getContentType(filePath);
+      
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(content);
+    } catch (error) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Error reading file');
     }
   }
 
-  cleanup() {
-    this.watchers.forEach(watcher => watcher.close());
-    this.saveBundleStates();
-  }
+  // === Semantic Analysis (Legacy methods for compatibility) ===
 
-  // Semantic Chunking Methods
   async getSemanticAnalysis() {
-    // Force refresh always for now (TODO: implement proper cache invalidation)
-    this.semanticCache = null // Clear cache
-    const shouldRefresh = true
-    
-    console.log('🔍 Cache check - shouldRefresh:', shouldRefresh, 'lastAnalysis:', this.lastSemanticAnalysis, 'now:', Date.now());
+    // First, try to load from cache
+    if (!this.semanticCache) {
+      const cacheData = this.configManager.loadSemanticCache();
+      if (cacheData) {
+        this.semanticCache = cacheData.analysis;
+        this.lastSemanticAnalysis = cacheData.timestamp;
+        return cacheData.analysis;
+      }
+    }
+
+    // Check if we need to refresh the semantic analysis
+    const shouldRefresh = !this.semanticCache || !this.lastSemanticAnalysis;
 
     if (shouldRefresh) {
       try {
         // Auto-discover JavaScript/TypeScript files in the entire project
         const patterns = ['**/*.{js,jsx,ts,tsx,mjs}'];
-        
+
         // Load bundle configuration for chunk grouping
         let bundleConfig = null;
-        if (existsSync(this.CONFIG_FILE)) {
-          bundleConfig = JSON.parse(readFileSync(this.CONFIG_FILE, 'utf8'));
+        if (existsSync(this.configManager.CONFIG_FILE)) {
+          bundleConfig = JSON.parse(readFileSync(this.configManager.CONFIG_FILE, 'utf8'));
         }
-        
+
         this.semanticCache = await this.semanticSplitter.extractSemanticChunks(this.CWD, patterns, bundleConfig);
         this.lastSemanticAnalysis = Date.now();
-        
-        // Debug logging
-        console.log('🔍 Semantic analysis complete. Sample chunk keys:', 
-          this.semanticCache.chunks.length > 0 ? Object.keys(this.semanticCache.chunks[0]) : 'No chunks');
-        if (this.semanticCache.chunks.length > 0) {
-          console.log('🔍 Sample chunk businessDomains:', this.semanticCache.chunks[0].businessDomains);
-        }
+
+        // Only enhance chunks with embeddings if they don't already have them
+        await this.enhanceSemanticChunksIfNeeded(this.semanticCache);
+
+        // Save to disk cache
+        this.configManager.saveSemanticCache(this.semanticCache);
+
+        console.log('🔍 Semantic analysis complete');
       } catch (error) {
         console.error('Semantic analysis failed:', error.message);
         throw new Error(`Semantic analysis failed: ${error.message}`);
@@ -1859,305 +263,355 @@ This project uses cntx-ui for bundle management and AI context organization.
     return this.semanticCache;
   }
 
+  async refreshSemanticAnalysis() {
+    console.log('🔄 Forcing semantic analysis refresh...');
+
+    // Clear memory cache
+    this.semanticCache = null;
+    this.lastSemanticAnalysis = null;
+
+    // Remove disk cache file
+    this.configManager.invalidateSemanticCache();
+
+    return this.getSemanticAnalysis();
+  }
+
+  async enhanceSemanticChunksIfNeeded(analysis) {
+    if (!analysis || !analysis.chunks) return;
+
+    const chunksNeedingEmbeddings = analysis.chunks.filter(chunk => !chunk.embedding);
+    
+    if (chunksNeedingEmbeddings.length === 0) {
+      console.log('✅ All chunks already have embeddings');
+      return;
+    }
+
+    console.log(`🔧 Enhancing ${chunksNeedingEmbeddings.length} chunks with embeddings...`);
+    
+    // Initialize vector store if needed
+    if (!this.vectorStoreInitialized) {
+      await this.vectorStore.init();
+      this.vectorStoreInitialized = true;
+    }
+
+    // Add embeddings to chunks that need them
+    for (const chunk of chunksNeedingEmbeddings) {
+      try {
+        const content = this.getChunkContentForEmbedding(chunk);
+        chunk.embedding = await this.vectorStore.generateEmbedding(content);
+      } catch (error) {
+        console.error(`Failed to generate embedding for chunk ${chunk.id}:`, error.message);
+      }
+    }
+  }
+
+  getChunkContentForEmbedding(chunk) {
+    let content = chunk.content || '';
+    
+    if (chunk.businessDomains?.length > 0) {
+      content += ' ' + chunk.businessDomains.join(' ');
+    }
+    
+    if (chunk.technicalPatterns?.length > 0) {
+      content += ' ' + chunk.technicalPatterns.join(' ');
+    }
+    
+    return content.trim();
+  }
+
   async exportSemanticChunk(chunkName) {
     const analysis = await this.getSemanticAnalysis();
-    const chunk = analysis.chunks.find(c => c.name === chunkName);
-
+    const chunk = analysis.chunks.find(c => c.name === chunkName || c.id === chunkName);
+    
     if (!chunk) {
       throw new Error(`Chunk "${chunkName}" not found`);
     }
 
-    // Generate XML content for the chunk files
-    let xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    xmlContent += `<codebase_context semantic_chunk="${chunkName}">\n`;
-    xmlContent += `  <chunk_info>\n`;
-    xmlContent += `    <name>${chunkName}</name>\n`;
-    xmlContent += `    <purpose>${chunk.purpose || 'No description'}</purpose>\n`;
-    xmlContent += `    <file_count>${chunk.files.length}</file_count>\n`;
-    xmlContent += `    <size>${chunk.size} bytes</size>\n`;
-    xmlContent += `    <complexity>${chunk.complexity?.level || 'unknown'}</complexity>\n`;
-    xmlContent += `    <tags>${(chunk.tags || []).join(', ')}</tags>\n`;
-    xmlContent += `  </chunk_info>\n\n`;
-
-    // Add each function in the chunk
-    if (chunk.functions) {
-      for (const func of chunk.functions) {
-        xmlContent += `  <function name="${func.name}" file="${func.filePath}">\n`;
-        xmlContent += `    <signature>${func.signature}</signature>\n`;
-        xmlContent += `    <type>${func.type}</type>\n`;
-        xmlContent += `    <lines>${func.startLine}-${func.endLine}</lines>\n`;
-        
-        if (func.context.imports.length > 0) {
-          xmlContent += `    <imports>${func.context.imports.join(', ')}</imports>\n`;
-        }
-        
-        xmlContent += `    <code>\n`;
-        xmlContent += func.code
-          .split('\n')
-          .map((line, i) => `${(func.startLine + i).toString().padStart(3)}  ${line}`)
-          .join('\n');
-        xmlContent += `\n    </code>\n`;
-        xmlContent += `  </function>\n\n`;
-      }
-    } else {
-      // Fallback for file-based chunks
-      for (const filePath of chunk.files || []) {
-        const fullPath = join(this.CWD, filePath);
-        if (existsSync(fullPath)) {
-          try {
-            const content = readFileSync(fullPath, 'utf8');
-            xmlContent += `  <file path="${filePath}">\n`;
-            xmlContent += content
-              .split('\n')
-              .map((line, i) => `${(i + 1).toString().padStart(3)}  ${line}`)
-              .join('\n');
-            xmlContent += `\n  </file>\n\n`;
-          } catch (error) {
-            console.warn(`Could not read file ${filePath}:`, error.message);
-          }
-        }
-      }
-    }
-
-    xmlContent += `</codebase_context>`;
-    return xmlContent;
-  }
-
-  async createBundleFromChunk(chunkName, files) {
-    // Load current config
-    let config = {};
-    if (existsSync(this.CONFIG_FILE)) {
-      config = JSON.parse(readFileSync(this.CONFIG_FILE, 'utf8'));
-    }
-
-    if (!config.bundles) {
-      config.bundles = {};
-    }
-
-    // Create bundle with the chunk name and files
-    const bundleName = chunkName.toLowerCase().replace(/[-\s]+/g, '-');
-    config.bundles[bundleName] = files;
-
-    // Save config
-    writeFileSync(this.CONFIG_FILE, JSON.stringify(config, null, 2));
-
-    // Reload bundles
-    this.loadConfig();
-    this.generateAllBundles();
-    this.saveBundleStates();
-    this.broadcastUpdate();
+    return this.bundleManager.generateFileXML(chunk.filePath);
   }
 
   invalidateSemanticCache() {
     this.semanticCache = null;
     this.lastSemanticAnalysis = null;
   }
+
+  // === Activity Management (Placeholder) ===
+
+  async loadActivities() {
+    try {
+      const activitiesPath = join(this.CWD, '.cntx', 'activities');
+      const activitiesJsonPath = join(activitiesPath, 'activities.json');
+      
+      console.log('DEBUG: Looking for activities at:', activitiesJsonPath);
+      console.log('DEBUG: File exists:', fs.existsSync(activitiesJsonPath));
+      console.log('DEBUG: CWD is:', this.CWD);
+      
+      if (!fs.existsSync(activitiesJsonPath)) {
+        console.log('Activities file not found, returning empty array');
+        return [];
+      }
+      
+      const activitiesData = JSON.parse(fs.readFileSync(activitiesJsonPath, 'utf8'));
+      
+      return activitiesData.map((activity, index) => {
+        // Extract the actual directory name from the references field
+        let activityId = activity.title.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        if (activity.references && activity.references.length > 0) {
+          // Extract directory name from path like ".cntx/activities/activities/refactor-js-to-ts/README.md"
+          const refPath = activity.references[0];
+          const pathParts = refPath.split('/');
+          if (pathParts.length >= 4) {
+            activityId = pathParts[3]; // activities/activities/{this-part}/README.md
+          }
+        }
+        const activityDir = join(activitiesPath, 'activities', activityId);
+        
+        // Load markdown files
+        const files = {
+          readme: this.loadMarkdownFile(join(activityDir, 'README.md')),
+          progress: this.loadMarkdownFile(join(activityDir, 'progress.md')),
+          tasks: this.loadMarkdownFile(join(activityDir, 'tasks.md')),
+          notes: this.loadMarkdownFile(join(activityDir, 'notes.md'))
+        };
+        
+        // Calculate progress from progress.md file
+        const progress = this.parseProgressFromMarkdown(files.progress);
+        
+        return {
+          id: activityId,
+          name: activity.title,
+          description: activity.description,
+          status: activity.status === 'todo' ? 'pending' : activity.status,
+          priority: activity.tags?.includes('high') ? 'high' : activity.tags?.includes('low') ? 'low' : 'medium',
+          progress,
+          updatedAt: new Date().toISOString(),
+          category: activity.tags?.[0] || 'general',
+          files,
+          tags: activity.tags
+        };
+      });
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+      return [];
+    }
+  }
+  
+  loadMarkdownFile(filePath) {
+    try {
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath, 'utf8');
+      }
+      return 'No content available';
+    } catch (error) {
+      return `Error loading file: ${error.message}`;
+    }
+  }
+
+  parseProgressFromMarkdown(progressContent) {
+    try {
+      if (!progressContent || progressContent === 'No content available') {
+        return 0;
+      }
+
+      // Look for "Overall Completion: XX%" pattern
+      const overallMatch = progressContent.match(/(?:Overall Completion|Progress):\s*(\d+)%/i);
+      if (overallMatch) {
+        return parseInt(overallMatch[1], 10);
+      }
+
+      // Fallback: count completed tasks vs total tasks in checkbox format
+      const taskMatches = progressContent.match(/- \[([x✓✅\s])\]/gi);
+      if (taskMatches && taskMatches.length > 0) {
+        const completedTasks = taskMatches.filter(match => 
+          match.includes('[x]') || match.includes('[✓]') || match.includes('[✅]')
+        ).length;
+        return Math.round((completedTasks / taskMatches.length) * 100);
+      }
+
+      return 0;
+    } catch (error) {
+      console.error('Error parsing progress:', error);
+      return 0;
+    }
+  }
+
+  async executeActivity(activityId) {
+    // Placeholder - would execute specific activity
+    return { success: false, message: 'Activity execution not implemented' };
+  }
+
+  async stopActivity(activityId) {
+    // Placeholder - would stop running activity
+    return { success: false, message: 'Activity stopping not implemented' };
+  }
+
+  // === MCP Server Integration ===
+
+  startMCPServer() {
+    if (!this.mcpServer) {
+      this.mcpServer = new MCPServer(this);
+      this.mcpServerStarted = true;
+      this.apiRouter.mcpServerStarted = true;
+      
+      if (!this.isQuietMode) {
+        console.log('🔗 MCP server started');
+      }
+    }
+  }
+
+  // === Server Lifecycle ===
+
+  listen(port = 3333, host = 'localhost') {
+    const server = createServer((req, res) => {
+      this.handleRequest(req, res);
+    });
+
+    // Initialize WebSocket server
+    this.webSocketManager.initialize(server);
+
+    server.listen(port, host, () => {
+      if (!this.isQuietMode) {
+        console.log(`🚀 cntx-ui server running at http://${host}:${port}`);
+        console.log(`📊 Serving ${this.bundleManager.getAllBundleInfo().length} bundles`);
+      }
+    });
+
+    // Handle graceful shutdown
+    process.on('SIGINT', () => {
+      console.log('\n🛑 Shutting down server...');
+      this.webSocketManager.close();
+      this.fileSystemManager.destroy();
+      server.close(() => {
+        console.log('✅ Server stopped');
+        process.exit(0);
+      });
+    });
+
+    return server;
+  }
 }
 
+// Export function for CLI compatibility
 export function startServer(options = {}) {
   const server = new CntxServer(options.cwd, { quiet: options.quiet });
   server.init();
 
   if (options.withMcp) {
-    server.mcpServerStarted = true;
-    if (!server.isQuietMode) {
-      console.log('🔗 MCP server tracking enabled - use /api/status to check MCP configuration');
-    }
+    server.startMCPServer();
   }
 
-  return server.startServer(options.port);
+  return server.listen(options.port, options.host);
 }
 
+// CLI Functions for backward compatibility
 export function startMCPServer(options = {}) {
   const server = new CntxServer(options.cwd, { quiet: true });
   server.init();
-  startMCPTransport(server);
-  return server;
+  server.startMCPServer();
+  
+  // For MCP mode, we don't start the web server, just keep the process alive
+  console.log('🔗 MCP server running on stdio...');
 }
 
-export function generateBundle(name = 'master', cwd = process.cwd(), options = {}) {
-  const server = new CntxServer(cwd, { quiet: options.quiet });
+export async function generateBundle(bundleName = 'master') {
+  const server = new CntxServer(process.cwd(), { quiet: true });
   server.init();
-  server.generateBundle(name);
-  server.saveBundleStates();
+  
+  await server.bundleManager.regenerateBundle(bundleName);
+  const bundleInfo = server.bundleManager.getBundleInfo(bundleName);
+  
+  if (!bundleInfo) {
+    throw new Error(`Bundle '${bundleName}' not found`);
+  }
+  
+  return bundleInfo;
 }
 
-export function initConfig(cwd = process.cwd(), options = {}) {
-  const isQuiet = options.quiet || false;
-  if (!isQuiet) {
-    console.log('🚀 Starting initConfig...');
-    console.log('📂 Working directory:', cwd);
+export function initConfig() {
+  const server = new CntxServer(process.cwd(), { quiet: false });
+  
+  // Initialize directory structure
+  if (!existsSync(server.CNTX_DIR)) {
+    mkdirSync(server.CNTX_DIR, { recursive: true });
+    console.log('📁 Created .cntx directory');
   }
-
-  const server = new CntxServer(cwd, { quiet: isQuiet });
-  if (!isQuiet) {
-    console.log('📁 CNTX_DIR:', server.CNTX_DIR);
-    console.log('📄 CONFIG_FILE path:', server.CONFIG_FILE);
-  }
-
-  const defaultConfig = {
+  
+  // Initialize configuration
+  server.configManager.loadConfig();
+  server.configManager.saveConfig({
     bundles: {
       master: ['**/*']
     }
-  };
-
-  try {
-    // Create .cntx directory
-    if (!isQuiet) console.log('🔍 Checking if .cntx directory exists...');
-    if (!existsSync(server.CNTX_DIR)) {
-      if (!isQuiet) console.log('📁 Creating .cntx directory...');
-      mkdirSync(server.CNTX_DIR, { recursive: true });
-      if (!isQuiet) console.log('✅ .cntx directory created');
-    } else {
-      if (!isQuiet) console.log('✅ .cntx directory already exists');
-    }
-
-    // List directory contents before writing config
-    if (!isQuiet) {
-      console.log('📋 Directory contents before writing config:');
-      const beforeFiles = readdirSync(server.CNTX_DIR);
-      console.log('Files:', beforeFiles);
-    }
-
-    // Write config.json
-    if (!isQuiet) {
-      console.log('📝 Writing config.json...');
-      console.log('📄 Config content:', JSON.stringify(defaultConfig, null, 2));
-      console.log('📍 Writing to path:', server.CONFIG_FILE);
-    }
-
-    writeFileSync(server.CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
-    if (!isQuiet) console.log('✅ writeFileSync completed');
-
-    // Verify file was created
-    if (!isQuiet) {
-      console.log('🔍 Checking if config.json exists...');
-      const configExists = existsSync(server.CONFIG_FILE);
-      console.log('Config exists?', configExists);
-
-      if (configExists) {
-        const configContent = readFileSync(server.CONFIG_FILE, 'utf8');
-        console.log('✅ Config file created successfully');
-        console.log('📖 Config content:', configContent);
-      } else {
-        console.log('❌ Config file was NOT created');
-      }
-
-      // List directory contents after writing config
-      console.log('📋 Directory contents after writing config:');
-      const afterFiles = readdirSync(server.CNTX_DIR);
-      console.log('Files:', afterFiles);
-    }
-
-  } catch (error) {
-    if (!isQuiet) {
-      console.error('❌ Error in initConfig:', error);
-      console.error('Stack trace:', error.stack);
-    }
-    throw error;
-  }
-
-  // Create cursor rules if they don't exist
-  try {
-    if (!existsSync(server.CURSOR_RULES_FILE)) {
-      if (!isQuiet) console.log('📋 Creating cursor rules...');
-      const cursorRules = server.getDefaultCursorRules();
-      server.saveCursorRules(cursorRules);
-      if (!isQuiet) console.log(`📋 Created ${relative(cwd, server.CURSOR_RULES_FILE)} with project-specific rules`);
-    }
-  } catch (error) {
-    if (!isQuiet) console.error('❌ Error creating cursor rules:', error);
-  }
-
-  if (!isQuiet) {
-    console.log('✅ cntx-ui initialized successfully!');
-    console.log('');
-    console.log('🚀 Next step: Start the web interface');
-    console.log('   Run: cntx-ui watch');
-    console.log('');
-    console.log('📱 Then visit: http://localhost:3333');
-    console.log('   Follow the setup guide to create your first bundles');
-    console.log('');
-    console.log('💡 The web interface handles everything - no manual file editing needed!');
-  }
+  });
+  
+  console.log('⚙️ Configuration initialized');
+  console.log('💡 Run "cntx-ui watch" to start the server');
 }
 
-export function getStatus(cwd = process.cwd(), options = {}) {
-  const server = new CntxServer(cwd, { quiet: options.quiet });
+export async function getStatus() {
+  const server = new CntxServer(process.cwd(), { quiet: true });
   server.init();
+  
+  const bundles = server.bundleManager.getAllBundleInfo();
+  const totalFiles = server.fileSystemManager.getAllFiles().length;
+  
+  console.log('📊 cntx-ui Status');
+  console.log('================');
+  console.log(`Total files: ${totalFiles}`);
+  console.log(`Bundles: ${bundles.length}`);
+  
+  bundles.forEach(bundle => {
+    console.log(`  • ${bundle.name}: ${bundle.fileCount} files (${Math.round(bundle.size / 1024)}KB)`);
+  });
+  
+  return {
+    totalFiles,
+    bundles: bundles.length,
+    bundleDetails: bundles
+  };
+}
 
-  if (!options.quiet) {
-    console.log(`📁 Working directory: ${server.CWD}`);
-    console.log(`📦 Bundles configured: ${server.bundles.size}`);
-    server.bundles.forEach((bundle, name) => {
-      const status = bundle.changed ? '🔄 CHANGED' : '✅ SYNCED';
-      console.log(`  ${name}: ${bundle.files.length} files ${status}`);
-    });
-
-    const hasCursorRules = existsSync(server.CURSOR_RULES_FILE);
-    console.log(`🤖 Cursor rules: ${hasCursorRules ? '✅ Configured' : '❌ Not found'}`);
+export function setupMCP() {
+  const configPath = join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+  const projectPath = process.cwd();
+  
+  console.log('🔧 Setting up MCP integration...');
+  console.log(`Project: ${projectPath}`);
+  console.log(`Claude config: ${configPath}`);
+  
+  try {
+    let config = {};
+    if (existsSync(configPath)) {
+      config = JSON.parse(readFileSync(configPath, 'utf8'));
+    }
+    
+    if (!config.mcpServers) {
+      config.mcpServers = {};
+    }
+    
+    config.mcpServers['cntx-ui'] = {
+      command: 'node',
+      args: [join(projectPath, 'bin', 'cntx-ui.js'), 'mcp'],
+      env: {}
+    };
+    
+    // Ensure directory exists
+    mkdirSync(dirname(configPath), { recursive: true });
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    
+    console.log('✅ MCP integration configured');
+    console.log('💡 Restart Claude Desktop to apply changes');
+  } catch (error) {
+    console.error('❌ Failed to setup MCP:', error.message);
+    console.log('💡 You may need to manually add the configuration to Claude Desktop');
   }
 }
 
-export function setupMCP(cwd = process.cwd(), options = {}) {
-  const isQuiet = options.quiet || false;
-  const projectDir = cwd;
-  const projectName = basename(projectDir);
-  const configFile = join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
-
-  if (!isQuiet) {
-    console.log('🔗 Setting up MCP for Claude Desktop...');
-    console.log(`📁 Project: ${projectName} (${projectDir})`);
-  }
-
-  // Create config directory if it doesn't exist
-  const configDir = dirname(configFile);
-  if (!existsSync(configDir)) {
-    mkdirSync(configDir, { recursive: true });
-  }
-
-  // Read existing config or create empty one
-  let config = { mcpServers: {} };
-  if (existsSync(configFile)) {
-    try {
-      const configContent = readFileSync(configFile, 'utf8');
-      config = JSON.parse(configContent);
-      if (!config.mcpServers) config.mcpServers = {};
-    } catch (error) {
-      if (!isQuiet) console.warn('⚠️  Could not parse existing config, creating new one');
-      config = { mcpServers: {} };
-    }
-  }
-
-  // Add this project's MCP server using shell command format that works with Claude Desktop
-  const serverName = `cntx-ui-${projectName}`;
-  config.mcpServers[serverName] = {
-    command: 'sh',
-    args: ['-c', `cd ${projectDir} && npx cntx-ui mcp`],
-    cwd: projectDir
-  };
-
-  // Write updated config
-  try {
-    writeFileSync(configFile, JSON.stringify(config, null, 2));
-
-    if (!isQuiet) {
-      console.log(`✅ Added MCP server: ${serverName}`);
-      console.log('📋 Your Claude Desktop config now includes:');
-
-      Object.keys(config.mcpServers).forEach(name => {
-        if (name.startsWith('cntx-ui-')) {
-          console.log(`  • ${name}: ${config.mcpServers[name].cwd}`);
-        }
-      });
-
-      console.log('🔄 Please restart Claude Desktop to use the updated configuration');
-    }
-  } catch (error) {
-    if (!isQuiet) {
-      console.error('❌ Error writing Claude Desktop config:', error.message);
-      console.error('💡 Make sure Claude Desktop is not running and try again');
-    }
-    throw error;
-  }
+// Auto-start server when run directly
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+  console.log('🚀 Starting cntx-ui server...');
+  const server = new CntxServer();
+  server.init();
+  server.listen(3333, 'localhost');
 }

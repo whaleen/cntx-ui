@@ -50,7 +50,11 @@
     "test:local": "npm pack && npm install -g ./cntx-ui-2.0.0.tgz"
   },
   "dependencies": {
+    "@radix-ui/react-tooltip": "^1.2.7",
+    "@xenova/transformers": "^2.17.2",
+    "chromadb": "^1.10.5",
     "glob": "^8.1.0",
+    "recharts": "^3.0.2",
     "tree-sitter": "^0.21.1",
     "tree-sitter-javascript": "^0.23.1",
     "tree-sitter-typescript": "^0.23.2",

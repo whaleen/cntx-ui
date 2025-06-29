@@ -1,0 +1,78 @@
+# Agent Rules Configuration - cntx-ui
+# Modular agent instruction system for composable rule sets
+
+version: "1.0.0"
+project: "cntx-ui"
+description: "Semantic code analysis and bundle management system"
+
+# Core rule sets (universal across all agents)
+core_rules:
+  - "core/performance-hierarchy.md"
+  - "core/codebase-navigation.md" 
+  - "core/response-formatting.md"
+
+# Capability modules (include if available in project)
+capabilities:
+  vector_search:
+    file: "capabilities/vector-search.md"
+    required: true
+    endpoint_check: "/api/vector-db/status"
+    
+  bundle_system:
+    file: "capabilities/bundle-system.md" 
+    required: true
+    endpoint_check: "/api/bundles"
+    
+  activities_system:
+    file: "capabilities/activities-system.md"
+    required: false
+    endpoint_check: "/api/activities"
+
+# Project-specific context
+project_context:
+  - "project-specific/architecture.md"
+  - "project-specific/patterns.md"
+  - "project-specific/conventions.md"
+
+# Tool-specific optimizations
+tools:
+  cursor:
+    include: ["core_rules", "capabilities", "project_context"]
+    output_file: ".cursorrules"
+    format: "markdown"
+    additional:
+      - "tools/cursor-specific.md"
+      
+  claude_code:
+    include: ["core_rules", "capabilities", "project_context"]
+    output_file: ".cntx/agent-instructions.md"
+    format: "markdown"
+    additional:
+      - "tools/claude-specific.md"
+      
+  github_copilot:
+    include: ["core_rules", "capabilities"] 
+    output_file: ".github/copilot-instructions.md"
+    format: "markdown"
+    additional:
+      - "tools/copilot-specific.md"
+
+# Performance metrics and validation
+validation:
+  vector_db_chunks: ">= 300"
+  response_time_target: "< 50ms"
+  token_efficiency_target: "> 80% vs traditional search"
+
+# Rule precedence (later rules override earlier ones)
+precedence:
+  1. "core_rules"      # Universal principles
+  2. "capabilities"    # Available system features  
+  3. "project_context" # Project-specific patterns
+  4. "tool_specific"   # Tool optimizations
+
+# Composition metadata
+metadata:
+  generated_by: "cntx-ui modular agent rules system"
+  last_updated: "2025-01-28"
+  schema_version: "1.0.0"
+  total_modules: 7

@@ -1,39 +1,120 @@
-# cntx-ui - Project Rules
+# cntx-ui Agent Rules - Modular System
 
-## Project Context
-- **Project**: cntx-ui
-- **Description**: Minimal file bundling and tagging tool for AI development
+> **Generated from modular rule system** - See `.cntx/agent-rules/` for source modules  
+> **Last updated**: 2025-01-28 via `.cntx/agent-config.yaml`
 
-## Development Guidelines
+## Performance Hierarchy - Universal Tool Usage Priority
 
-### Code Quality
-- Write clean, readable code
-- Follow consistent naming conventions
-- Add comments for complex logic
-- Maintain proper file organization
+**Always use the fastest, most efficient tool available for each task.**
 
-### Bundle Management
-This project uses cntx-ui for intelligent file bundling. Current bundles: 
-- **master**: Complete project overview
-- **config**: Configuration and setup files
-- **docs**: Documentation and README files
+### Priority Order:
+1. **Vector Database (PRIMARY)** - `POST /api/vector-db/search`
+   - Response time: ~20ms | Token savings: 90%
+   - Use for: Semantic discovery, pattern matching, "find functions that..."
+   - Query format: `{"query": "semantic description", "limit": 5}`
 
-### AI Assistant Instructions
-- When helping with code, consider the project structure
-- Suggest improvements for maintainability
-- Follow established patterns in the codebase
-- Help optimize bundle configurations when needed
-- Consider bundle organization when suggesting file locations
+2. **Structured APIs** - Bundle system, Activities API
+   - Response time: ~50ms | High token efficiency  
+   - Use for: Project structure, metadata, organized information
 
-## Custom Rules
-Add your specific project rules and preferences below:
+3. **Traditional Search (FALLBACK ONLY)** - grep/rg/file reading
+   - Response time: 100ms+ | High token cost
+   - Use only when: Vector search fails or exact keywords needed
 
-### Team Preferences
-- [Add team coding standards]
-- [Add preferred libraries/frameworks]
-- [Add project-specific guidelines]
+## Vector Search Capabilities (PRIMARY TOOL)
 
-### Architecture Notes
-- [Document key architectural decisions]
-- [Note important patterns to follow]
-- [List critical dependencies]
+### Semantic Search Examples:
+```bash
+# Code discovery
+curl -X POST /api/vector-db/search -d '{"query": "React component state management", "limit": 3}'
+
+# Pattern matching  
+curl -X POST /api/vector-db/search -d '{"query": "API endpoint request handling", "limit": 5}'
+
+# Feature investigation
+curl -X POST /api/vector-db/search -d '{"query": "configuration file loading", "limit": 3}'
+```
+
+### Query Optimization:
+- Use 3-5 descriptive words: "user authentication login session"
+- Be conceptual, not literal: "form validation" not "validateForm function"
+- Lower similarity (0.1-0.2) for broader discovery
+- Higher limits (5-10) for comprehensive exploration
+
+### Fallback Strategy:
+1. Try broader/simpler query terms
+2. Use search-by-type: `{"type": "react_component"}`
+3. Use search-by-domain: `{"domain": "authentication"}`
+4. Last resort: traditional grep/rg search
+
+## Project Architecture - cntx-ui
+
+### Technology Stack:
+- **Backend**: Node.js + custom HTTP routing + Vector embeddings
+- **Frontend**: React + TypeScript + Vite + shadcn/ui + Tailwind
+- **Analysis**: Semantic splitter + Tree-sitter + Vector store + Heuristics
+
+### Key Capabilities Available:
+- **Vector Database**: 315+ code chunks, real-time updates, semantic search
+- **Bundle System**: Logical file groupings (frontend, backend, ui-components)
+- **Activities System**: Agent task definitions and progress tracking
+- **Heuristics Engine**: Configurable code categorization rules
+
+### Directory Structure:
+```
+├── lib/                    # Core analysis engines
+├── web/src/               # React frontend 
+├── .cntx/                 # Configuration and cache
+│   ├── activities/        # Agent task definitions
+│   ├── agent-rules/       # Modular instruction system
+│   └── bundles.json       # Bundle configuration
+└── server.js              # Main HTTP server and API
+```
+
+## Navigation and Discovery Patterns
+
+### Operating Modes:
+- **Discovery**: "Tell me about this codebase" → Bundle overview + Vector search
+- **Query**: "Where is authentication handled?" → Vector search first, precise lookup
+- **Investigation**: "I want to add feature X" → Vector search patterns → Bundle context
+- **Collaboration**: "Let's discuss architecture" → Bundle structure + Vector insights
+
+### Response Structure:
+```markdown
+Based on [vector search/bundle analysis]:
+
+[Direct answer to question]
+
+Key locations:
+1. Primary: `file.js:lines` - [description]  
+2. Related: `other.js:lines` - [relationship]
+
+[Brief explanation of relationships]
+
+Next steps: [specific actionable options]
+```
+
+## Cursor-Specific Optimizations
+
+### Code Discovery Workflow:
+1. **Start with vector search** for semantic understanding
+2. **Use bundle context** for architectural boundaries  
+3. **Access specific files** only after understanding scope
+4. **Provide precise references** with line numbers and explanations
+
+### Integration with Cursor:
+- **Leverage vector search** before exploring file tree
+- **Respect bundle organization** when suggesting file locations
+- **Use semantic understanding** to explain code relationships
+- **Optimize for rapid comprehension** rather than exhaustive analysis
+
+### Performance Targets:
+- Vector search: ~20ms response time
+- 90% token savings vs traditional file reading
+- Real-time updates with code changes
+- Comprehensive coverage: 315+ indexed code chunks
+
+---
+
+> **Modular Rule System**: This file is generated from composable rule modules in `.cntx/agent-rules/`. 
+> Update individual modules and regenerate rather than editing this file directly.

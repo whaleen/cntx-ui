@@ -1,64 +1,13 @@
 {
   "bundles": {
+    "server": [
+      "lib/api-router.js",
+      "lib/bundle-manager.js",
+      "server.js"
+    ],
     "master": [
       "**/*"
-    ],
-    "server": [
-      "server.js",
-      "bin/**/*",
-      "bin/cntx-ui-mcp.sh",
-      "bin/cntx-ui.js",
-      "lib/mcp-server.js",
-      "lib/mcp-transport.js",
-      "debug-chunker.mjs",
-      "lib/semantic-chunker.js",
-      "lib/semantic-integration.js",
-      "semantic-analysis.mjs",
-      "test-chunker.mjs",
-      "debug-chunker-fields.mjs",
-      "debug-server-call.mjs",
-      "lib/treesitter-semantic-chunker.js",
-      "test-treesitter.mjs",
-      "test-chunker.js",
-      "lib/function-level-chunker.js",
-      "temp_treesitter_test.js",
-      "lib/semantic-splitter.js",
-      "test-complexity.js"
-    ],
-    "frontend": [
-      "web/src/**/*",
-      "web/src/App.css",
-      "web/src/App.tsx",
-      "web/src/index.css",
-      "web/src/main.tsx",
-      "web/src/vite-env.d.ts",
-      "README.md",
-      "web/src/components/ui/alert.tsx",
-      "test-file.txt",
-      "web/index.html"
-    ],
-    "ui-components": [
-      "web/src/components/**/*",
-      "web/src/components/ui/alert.tsx"
-    ],
-    "config": [
-      "package.json",
-      "web/package.json",
-      "*.config.*",
-      "web/*.config.*",
-      "web/tsconfig*.json",
-      "web/components.json",
-      "web/eslint.config.js",
-      "build.sh",
-      "examples/claude-mcp-setup.sh",
-      "mcp-config-example.json",
-      "test-local.sh",
-      "test-mcp.json"
-    ],
-    "docs": [
-      "README.md",
-      "web/README.md",
-      "*.md"
     ]
-  }
+  },
+  "editor": "cursor"
 }

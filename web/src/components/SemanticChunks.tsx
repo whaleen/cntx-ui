@@ -1,3 +1,4 @@
+// web/src/components/SemanticChunks.tsx
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card'
@@ -214,7 +215,7 @@ export function SemanticChunks() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between text-sm font-medium">
+          <CardTitle className="flex items-center justify-between text-sm font-thin">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4" />
               Filters
@@ -423,7 +424,7 @@ export function SemanticChunks() {
       {/* Analysis Summary */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between text-sm font-medium">
+          <CardTitle className="flex items-center justify-between text-sm font-thin">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
               Project Analysis
@@ -443,27 +444,27 @@ export function SemanticChunks() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
-              <div className="text-lg font-medium">{analysis.summary?.totalFiles || 0}</div>
-              <div className="text-xs text-muted-foreground font-normal">Files Analyzed</div>
+              <div className="text-lg font-thin">{analysis.summary?.totalFiles || 0}</div>
+              <div className="text-xs text-muted-foreground font-thin">Files Analyzed</div>
             </div>
             <div>
-              <div className="text-lg font-medium">{analysis.summary?.totalFunctions || 0}</div>
-              <div className="text-xs text-muted-foreground font-normal">Functions Extracted</div>
+              <div className="text-lg font-thin">{analysis.summary?.totalFunctions || 0}</div>
+              <div className="text-xs text-muted-foreground font-thin">Functions Extracted</div>
             </div>
             <div>
-              <div className="text-lg font-medium">
+              <div className="text-lg font-thin">
                 {filteredChunks.length}
                 {hasActiveFilters && (
                   <span className="text-sm text-muted-foreground"> / {analysis.summary?.totalChunks || 0}</span>
                 )}
               </div>
-              <div className="text-xs text-muted-foreground font-normal">
+              <div className="text-xs text-muted-foreground font-thin">
                 {hasActiveFilters ? 'Filtered' : 'Total'} Chunks
               </div>
             </div>
             <div>
-              <div className="text-lg font-medium">{Math.round(analysis.summary?.averageChunkSize || 0)}</div>
-              <div className="text-xs text-muted-foreground font-normal">Avg Chunk Size</div>
+              <div className="text-lg font-thin">{Math.round(analysis.summary?.averageChunkSize || 0)}</div>
+              <div className="text-xs text-muted-foreground font-thin">Avg Chunk Size</div>
             </div>
           </div>
         </CardContent>
@@ -476,7 +477,7 @@ export function SemanticChunks() {
             <CardContent className="pt-6">
               <div className="text-center py-8">
                 <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No chunks match your filters</h3>
+                <h3 className="text-lg font-thin mb-2">No chunks match your filters</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   Try adjusting your search criteria or clearing the filters.
                 </p>
@@ -498,7 +499,7 @@ export function SemanticChunks() {
                       {getChunkIcon(chunk)}
                     </div>
                     <div className="flex-1">
-                      <CardTitle className="text-sm font-medium tracking-wide">
+                      <CardTitle className="text-sm font-thin tracking-wide">
                         {chunk.name}
                       </CardTitle>
                       <div className="flex items-center gap-2 mt-1">
@@ -547,7 +548,7 @@ export function SemanticChunks() {
                 <div className="space-y-3">
                   {/* Purpose and Tags */}
                   <div>
-                    <p className="text-xs text-muted-foreground font-normal mb-2">
+                    <p className="text-xs text-muted-foreground font-thin mb-2">
                       🎯 {chunk.purpose}
                     </p>
                     <div className="flex flex-wrap gap-1">
@@ -566,8 +567,8 @@ export function SemanticChunks() {
 
                   {/* File Path and Location */}
                   <div>
-                    <div className="text-xs font-medium mb-1">Location:</div>
-                    <div className="text-xs text-muted-foreground font-normal font-mono">
+                    <div className="text-xs font-thin mb-1">Location:</div>
+                    <div className="text-xs text-muted-foreground font-thin font-mono">
                       {chunk.filePath}{chunk.startLine ? `:${chunk.startLine}` : ''}
                     </div>
                   </div>
@@ -577,7 +578,7 @@ export function SemanticChunks() {
                     <div className="flex items-start gap-2 p-2 bg-blue-50 rounded text-xs">
                       <Package className="w-3 h-3 mt-0.5 text-blue-600" />
                       <div>
-                        <div className="font-medium text-blue-800">Bundles:</div>
+                        <div className="font-thin text-blue-800">Bundles:</div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {chunk.bundles?.map(bundle => (
                             <Badge key={bundle} variant="outline" className="text-xs h-4 bg-blue-100 text-blue-700 border-blue-200">
@@ -594,8 +595,8 @@ export function SemanticChunks() {
                     <div className="flex items-start gap-2 p-2 bg-muted/50 rounded text-xs">
                       <Package className="w-3 h-3 mt-0.5 text-blue-500" />
                       <div>
-                        <div className="font-medium">Imports:</div>
-                        <div className="font-normal">{chunk.includes?.imports.slice(0, 3).join(', ')}</div>
+                        <div className="font-thin">Imports:</div>
+                        <div className="font-thin">{chunk.includes?.imports.slice(0, 3).join(', ')}</div>
                         {(chunk.includes?.imports.length || 0) > 3 && (
                           <div className="text-muted-foreground">+{(chunk.includes?.imports.length || 0) - 3} more</div>
                         )}
@@ -610,7 +611,7 @@ export function SemanticChunks() {
                       {chunk.code && (
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <div className="text-xs font-medium">Function Code:</div>
+                            <div className="text-xs font-thin">Function Code:</div>
                             <Button
                               variant="outline"
                               size="sm"
@@ -633,7 +634,7 @@ export function SemanticChunks() {
                       {/* Dependencies */}
                       {(chunk.includes?.imports.length || 0) > 0 && (
                         <div>
-                          <div className="text-xs font-medium mb-2">All Imports:</div>
+                          <div className="text-xs font-thin mb-2">All Imports:</div>
                           <div className="space-y-1">
                             {chunk.includes?.imports.map((imp, idx) => (
                               <div key={idx} className="text-xs font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
@@ -647,7 +648,7 @@ export function SemanticChunks() {
                       {/* Types */}
                       {(chunk.includes?.types.length || 0) > 0 && (
                         <div>
-                          <div className="text-xs font-medium mb-2">Related Types:</div>
+                          <div className="text-xs font-thin mb-2">Related Types:</div>
                           <div className="space-y-1">
                             {chunk.includes?.types.map((type, idx) => (
                               <div key={idx} className="text-xs font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">

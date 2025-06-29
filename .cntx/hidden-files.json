@@ -1,27 +1,13 @@
 {
-  "globalHidden": [
-    "cntx-ui-2.0.3.tgz",
-    "package.json.bak"
-  ],
+  "globalHidden": [],
   "bundleSpecific": {
-    "master": [
-      "web/components.json"
-    ],
+    "debugging": [],
+    "server": [],
+    "frontend": [],
     "config": [],
-    "docs": [],
-    "ui-components": [
-      "web/src/components/ui/badge.tsx",
-      "web/src/components/ui/card.tsx",
-      "web/src/components/ui/label.tsx",
-      "web/src/components/ui/sonner.tsx",
-      "web/src/components/ui/alert.tsx"
-    ],
-    "frontend": [
-      "README.md"
-    ],
-    "server": [
-      "README.md"
-    ]
+    "activities": [],
+    "tests": [],
+    "docs": []
   },
   "userIgnorePatterns": [],
   "disabledSystemPatterns": []
