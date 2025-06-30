@@ -1,5 +1,5 @@
 // web/src/components/SemanticChunks.tsx
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card'
 import { Button } from './ui/button'
@@ -16,18 +16,34 @@ import {
   Package,
   AlertTriangle,
   Eye,
-  EyeOff,
   BarChart3,
   Search,
   Filter,
-  X
+  X,
+  ChevronDown,
+  ChevronUp,
+  Parentheses,
+  ExternalLink
 } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import Prism from 'prismjs'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-jsx'
+import 'prismjs/components/prism-tsx'
+import 'prismjs/components/prism-json'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-scss'
+import 'prismjs/components/prism-markdown'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-yaml'
+import 'prismjs/themes/prism.css'
 
 interface SemanticChunk {
   name: string
   type: string
   subtype?: string
+  semanticType?: string
   purpose: string
   filePath: string
   size: number
@@ -64,9 +80,134 @@ const fetchSemanticAnalysis = async (): Promise<SemanticAnalysis> => {
   return response.json()
 }
 
+// Code Preview Modal Component
+function CodePreviewModal({
+  chunk,
+  isOpen,
+  onClose
+}: {
+  chunk: SemanticChunk | null
+  isOpen: boolean
+  onClose: () => void
+}) {
+  const [highlightedCode, setHighlightedCode] = useState('')
+
+  useEffect(() => {
+    if (isOpen && chunk?.code) {
+      // Determine language based on file extension
+      const getLanguage = (filePath: string) => {
+        const ext = filePath.split('.').pop()?.toLowerCase()
+        switch (ext) {
+          case 'js': return 'javascript'
+          case 'jsx': return 'jsx'
+          case 'ts': return 'typescript'
+          case 'tsx': return 'tsx'
+          case 'json': return 'json'
+          case 'css': return 'css'
+          case 'scss': return 'scss'
+          case 'md': return 'markdown'
+          case 'sh': case 'bash': return 'bash'
+          case 'yml': case 'yaml': return 'yaml'
+          default: return 'javascript'
+        }
+      }
+
+      const language = getLanguage(chunk.filePath)
+      const highlighted = Prism.highlight(chunk.code, Prism.languages[language] || Prism.languages.javascript, language)
+      setHighlightedCode(highlighted)
+    }
+  }, [isOpen, chunk])
+
+  const openInEditor = async () => {
+    if (!chunk) return
+
+    try {
+      const response = await fetch('http://localhost:3333/api/open-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: chunk.filePath })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to open file')
+      }
+
+      toast.success(`Opening ${chunk.filePath} in editor...`)
+    } catch (err) {
+      console.error('Failed to open in editor:', err)
+      toast.error(`Could not open file: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
+  if (!isOpen || !chunk) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-background border rounded-lg shadow-lg w-full max-w-3xl max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-3 border-b">
+          <div>
+            <h3 className="font-semibold text-base">{chunk.name}</h3>
+            <p className="text-xs text-muted-foreground">{chunk.filePath}{chunk.startLine ? `:${chunk.startLine}` : ''}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openInEditor}
+              title="Open in external editor"
+            >
+              <ExternalLink className="w-3 h-3 mr-1" />
+              Open
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(chunk.code || '')
+                toast.success('Code copied to clipboard!')
+              }}
+            >
+              <Copy className="w-3 h-3 mr-1" />
+              Copy
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Code Content */}
+        <div className="flex-1 overflow-auto p-3">
+          {chunk.code ? (
+            <div className="bg-muted/30 rounded p-3">
+              <pre className="text-xs font-mono overflow-x-auto">
+                <code
+                  className="language-javascript"
+                  dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                />
+              </pre>
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-6">
+              No code available for this chunk
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function SemanticChunks() {
-  const [showDetails, setShowDetails] = useState<string | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [previewChunk, setPreviewChunk] = useState<SemanticChunk | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
@@ -84,6 +225,16 @@ export function SemanticChunks() {
     refetchInterval: 60000 // Refresh every minute
   })
 
+  // Fetch bundle names for filter
+  const { data: bundleStates } = useQuery({
+    queryKey: ['bundle-states'],
+    queryFn: async () => {
+      const response = await fetch('/api/bundles')
+      if (!response.ok) throw new Error('Failed to fetch bundles')
+      return response.json()
+    },
+    staleTime: 30000
+  })
 
   // Filtered chunks based on search and filters
   const filteredChunks = useMemo(() => {
@@ -103,7 +254,7 @@ export function SemanticChunks() {
       }
 
       // Type filter
-      if (typeFilter !== 'all' && chunk.subtype !== typeFilter) return false
+      if (typeFilter !== 'all' && chunk.semanticType !== typeFilter) return false
 
       // Complexity filter
       if (complexityFilter !== 'all' && chunk.complexity?.level !== complexityFilter) return false
@@ -119,7 +270,7 @@ export function SemanticChunks() {
       if (exportedFilter === 'exported' && !chunk.isExported) return false
       if (exportedFilter === 'internal' && chunk.isExported) return false
 
-      // Bundle filter
+      // Bundle filter - check if chunk belongs to the selected bundle
       if (bundleFilter !== 'all' && !chunk.bundles?.includes(bundleFilter)) return false
 
       return true
@@ -132,13 +283,19 @@ export function SemanticChunks() {
   const filterOptions = useMemo(() => {
     if (!analysis?.chunks) return { types: [], purposes: [], complexities: [], bundles: [] }
 
-    const types = [...new Set(analysis.chunks.map(c => c.subtype).filter(Boolean))].sort()
+    const types = [...new Set(analysis.chunks.map(c => c.semanticType).filter(Boolean))].sort()
     const purposes = [...new Set(analysis.chunks.map(c => c.purpose))].sort()
     const complexities = [...new Set(analysis.chunks.map(c => c.complexity?.level).filter(Boolean))].sort()
-    const bundles = [...new Set(analysis.chunks.flatMap(c => c.bundles || []))].sort()
+
+    // Get bundle names from bundle states instead of individual chunks
+    const bundles = bundleStates ? bundleStates.map((bundle: any) => bundle.name).sort() : []
+
+    // Debug bundle states
+    console.log('Bundle states data:', bundleStates)
+    console.log('Extracted bundles:', bundles)
 
     return { types, purposes, complexities, bundles }
-  }, [analysis?.chunks])
+  }, [analysis?.chunks, bundleStates])
 
   const clearFilters = () => {
     setSearchTerm('')
@@ -153,6 +310,32 @@ export function SemanticChunks() {
   const hasActiveFilters = searchTerm || typeFilter !== 'all' || complexityFilter !== 'all' ||
     purposeFilter !== 'all' || asyncFilter !== 'all' || exportedFilter !== 'all' || bundleFilter !== 'all'
 
+  const openCodePreview = (chunk: SemanticChunk) => {
+    setPreviewChunk(chunk)
+    setIsPreviewOpen(true)
+  }
+
+  const openInEditor = async (filePath: string, line?: number) => {
+    try {
+      const body: { filePath: string; line?: number } = { filePath }
+      if (line) body.line = line
+      const response = await fetch('http://localhost:3333/api/open-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to open file')
+      }
+
+      toast.success(`Opening ${filePath} in editor...`)
+    } catch (err) {
+      console.error('Failed to open in editor:', err)
+      toast.error(`Could not open file: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
 
   const getChunkIcon = (chunk: SemanticChunk) => {
     if (chunk.subtype === 'react_component' || chunk.tags?.includes('react_component')) return <Code className="w-4 h-4" />
@@ -209,7 +392,6 @@ export function SemanticChunks() {
 
   if (!analysis) return null
 
-
   return (
     <div className="space-y-6">
       {/* Filters */}
@@ -220,23 +402,33 @@ export function SemanticChunks() {
               <Filter className="w-4 h-4" />
               Filters
             </div>
-            {hasActiveFilters && (
+            <div className="flex items-center gap-2">
+              {hasActiveFilters && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={clearFilters}
+                >
+                  <X className="w-3 h-3 mr-1" />
+                  Clear All
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs"
-                onClick={clearFilters}
+                className="h-7 text-xs md:hidden"
+                onClick={() => setShowFilters(!showFilters)}
               >
-                <X className="w-3 h-3 mr-1" />
-                Clear All
+                {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </Button>
-            )}
+            </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
-            {/* Search */}
-            <div className="md:col-span-2">
+        <CardContent className={`${showFilters ? 'block' : 'hidden'} md:block`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Search - Full width on mobile */}
+            <div className="md:col-span-2 lg:col-span-2 xl:col-span-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -471,38 +663,38 @@ export function SemanticChunks() {
       </Card>
 
       {/* Semantic Chunks Grid */}
-      <div className="grid gap-4">
-        {filteredChunks.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-thin mb-2">No chunks match your filters</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Try adjusting your search criteria or clearing the filters.
-                </p>
-                {hasActiveFilters && (
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear All Filters
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredChunks.map((chunk, index) => (
+      {filteredChunks.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-thin mb-2">No chunks match your filters</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Try adjusting your search criteria or clearing the filters.
+              </p>
+              {hasActiveFilters && (
+                <Button variant="outline" onClick={clearFilters}>
+                  Clear All Filters
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredChunks.map((chunk, index) => (
             <Card key={`${chunk.filePath}-${chunk.name}-${index}`} className="relative">
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="mt-1 flex-shrink-0">
                       {getChunkIcon(chunk)}
                     </div>
-                    <div className="flex-1">
-                      <CardTitle className="text-sm font-thin tracking-wide">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-sm font-thin tracking-wide truncate">
                         {chunk.name}
                       </CardTitle>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-1 mt-1 flex-wrap">
                         <Badge variant="outline" className="text-xs h-4">
                           {chunk.subtype || chunk.type}
                         </Badge>
@@ -528,18 +720,24 @@ export function SemanticChunks() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 flex-shrink-0">
                     <Button
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs"
-                      onClick={() => setShowDetails(showDetails === chunk.name ? null : chunk.name)}
+                      onClick={() => openInEditor(chunk.filePath, chunk.startLine)}
+                      title="Open in external editor"
                     >
-                      {showDetails === chunk.name ? (
-                        <EyeOff className="w-3 h-3" />
-                      ) : (
-                        <Eye className="w-3 h-3" />
-                      )}
+                      <ExternalLink className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => openCodePreview(chunk)}
+                      title="View code preview"
+                    >
+                      <Eye className="w-3 h-3" />
                     </Button>
                   </div>
                 </div>
@@ -548,18 +746,19 @@ export function SemanticChunks() {
                 <div className="space-y-3">
                   {/* Purpose and Tags */}
                   <div>
-                    <p className="text-xs text-muted-foreground font-thin mb-2">
-                      🎯 {chunk.purpose}
+                    <p className="text-xs text-muted-foreground font-thin mb-2 line-clamp-2">
+                      <Parentheses className="w-3 h-3 inline mr-1" />
+                      {chunk.purpose}
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {(chunk.tags || []).slice(0, 6).map(tag => (
+                      {(chunk.tags || []).slice(0, 4).map(tag => (
                         <Badge key={tag} variant="secondary" className="text-xs h-4">
                           {tag}
                         </Badge>
                       ))}
-                      {(chunk.tags || []).length > 6 && (
+                      {(chunk.tags || []).length > 4 && (
                         <Badge variant="secondary" className="text-xs h-4">
-                          +{(chunk.tags || []).length - 6} more
+                          +{(chunk.tags || []).length - 4} more
                         </Badge>
                       )}
                     </div>
@@ -568,7 +767,7 @@ export function SemanticChunks() {
                   {/* File Path and Location */}
                   <div>
                     <div className="text-xs font-thin mb-1">Location:</div>
-                    <div className="text-xs text-muted-foreground font-thin font-mono">
+                    <div className="text-xs text-muted-foreground font-thin font-mono truncate">
                       {chunk.filePath}{chunk.startLine ? `:${chunk.startLine}` : ''}
                     </div>
                   </div>
@@ -576,15 +775,20 @@ export function SemanticChunks() {
                   {/* Bundle Membership */}
                   {(chunk.bundles?.length || 0) > 0 && (
                     <div className="flex items-start gap-2 p-2 bg-blue-50 rounded text-xs">
-                      <Package className="w-3 h-3 mt-0.5 text-blue-600" />
-                      <div>
+                      <Package className="w-3 h-3 mt-0.5 text-blue-600 flex-shrink-0" />
+                      <div className="min-w-0">
                         <div className="font-thin text-blue-800">Bundles:</div>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {chunk.bundles?.map(bundle => (
+                          {chunk.bundles?.slice(0, 2).map(bundle => (
                             <Badge key={bundle} variant="outline" className="text-xs h-4 bg-blue-100 text-blue-700 border-blue-200">
                               {bundle}
                             </Badge>
                           ))}
+                          {(chunk.bundles?.length || 0) > 2 && (
+                            <Badge variant="outline" className="text-xs h-4 bg-blue-100 text-blue-700 border-blue-200">
+                              +{(chunk.bundles?.length || 0) - 2} more
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -593,80 +797,32 @@ export function SemanticChunks() {
                   {/* Function Includes (imports/types) */}
                   {(chunk.includes?.imports.length || 0) > 0 && (
                     <div className="flex items-start gap-2 p-2 bg-muted/50 rounded text-xs">
-                      <Package className="w-3 h-3 mt-0.5 text-blue-500" />
-                      <div>
+                      <Package className="w-3 h-3 mt-0.5 text-blue-500 flex-shrink-0" />
+                      <div className="min-w-0">
                         <div className="font-thin">Imports:</div>
-                        <div className="font-thin">{chunk.includes?.imports.slice(0, 3).join(', ')}</div>
-                        {(chunk.includes?.imports.length || 0) > 3 && (
-                          <div className="text-muted-foreground">+{(chunk.includes?.imports.length || 0) - 3} more</div>
+                        <div className="font-thin truncate">{chunk.includes?.imports.slice(0, 2).join(', ')}</div>
+                        {(chunk.includes?.imports.length || 0) > 2 && (
+                          <div className="text-muted-foreground">+{(chunk.includes?.imports.length || 0) - 2} more</div>
                         )}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Expanded Details */}
-                  {showDetails === chunk.name && (
-                    <div className="border-t pt-3 space-y-3">
-                      {/* Function Code Preview */}
-                      {chunk.code && (
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-xs font-thin">Function Code:</div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => {
-                                navigator.clipboard.writeText(chunk.code || '')
-                                toast.success('Code copied to clipboard!')
-                              }}
-                            >
-                              <Copy className="w-3 h-3 mr-1" />
-                              Copy
-                            </Button>
-                          </div>
-                          <div className="bg-muted/30 rounded p-3 text-xs font-mono overflow-x-auto">
-                            <pre className="whitespace-pre-wrap">{chunk.code}</pre>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Dependencies */}
-                      {(chunk.includes?.imports.length || 0) > 0 && (
-                        <div>
-                          <div className="text-xs font-thin mb-2">All Imports:</div>
-                          <div className="space-y-1">
-                            {chunk.includes?.imports.map((imp, idx) => (
-                              <div key={idx} className="text-xs font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
-                                {imp}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Types */}
-                      {(chunk.includes?.types.length || 0) > 0 && (
-                        <div>
-                          <div className="text-xs font-thin mb-2">Related Types:</div>
-                          <div className="space-y-1">
-                            {chunk.includes?.types.map((type, idx) => (
-                              <div key={idx} className="text-xs font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
-                                {type}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
-          )))}
-      </div>
+          ))}
+        </div>
+      )}
 
+      {/* Code Preview Modal */}
+      <CodePreviewModal
+        chunk={previewChunk}
+        isOpen={isPreviewOpen}
+        onClose={() => {
+          setIsPreviewOpen(false)
+          setPreviewChunk(null)
+        }}
+      />
     </div>
   )
 }

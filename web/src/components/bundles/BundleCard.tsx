@@ -2,7 +2,7 @@ import React from 'react'
 import { Card, CardHeader, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
-import { Copy, RefreshCw, Loader2, CheckCircle, AlertCircle, Download, AlertTriangle } from 'lucide-react'
+import { Copy, RefreshCw, Loader2, CheckCircle, AlertCircle, Download, AlertTriangle, Clock, Box } from 'lucide-react'
 import { formatFileSize } from './utils'
 
 // Temporary local interface to test
@@ -17,6 +17,73 @@ interface BundleCardProps {
   successButtons: Set<string>
   errorButtons: Set<string>
   hasUnassignedFiles: boolean
+  lastRefresh?: Date // When was data last fetched
+}
+
+type BundleHealthStatus = 'healthy' | 'warning' | 'error' | 'stale'
+
+const getBundleHealth = (bundle: any, lastRefresh?: Date): BundleHealthStatus => {
+  // If bundle shows as changed, check how long it's been that way
+  if (bundle.changed) {
+    if (!lastRefresh) return 'warning'
+
+    const now = new Date()
+    const timeSinceRefresh = now.getTime() - lastRefresh.getTime()
+    const minutesSinceRefresh = timeSinceRefresh / (1000 * 60)
+
+    // If it's been "changed" for more than 5 minutes after a refresh, something's wrong
+    if (minutesSinceRefresh > 5) return 'error'
+
+    // If it's been changed for more than 1 minute, show warning
+    if (minutesSinceRefresh > 1) return 'warning'
+
+    return 'warning' // Just changed
+  }
+
+  // If not changed but no recent refresh data, might be stale
+  if (!lastRefresh) return 'stale'
+
+  const now = new Date()
+  const timeSinceRefresh = now.getTime() - lastRefresh.getTime()
+  const minutesSinceRefresh = timeSinceRefresh / (1000 * 60)
+
+  // If no refresh in 10+ minutes, data might be stale
+  if (minutesSinceRefresh > 10) return 'stale'
+
+  return 'healthy'
+}
+
+const getBundleStatusInfo = (health: BundleHealthStatus, bundle: any) => {
+  switch (health) {
+    case 'healthy':
+      return {
+        label: 'SYNCED',
+        variant: 'secondary' as const,
+        icon: CheckCircle,
+        className: 'text-[color:var(--color-success)]'
+      }
+    case 'warning':
+      return {
+        label: bundle.changed ? 'SYNCING' : 'SYNCED',
+        variant: 'outline' as const,
+        icon: Clock,
+        className: 'text-[color:var(--color-warning)] border-[color:var(--color-warning)]/30'
+      }
+    case 'error':
+      return {
+        label: 'SYNC FAILED',
+        variant: 'destructive' as const,
+        icon: AlertCircle,
+        className: ''
+      }
+    case 'stale':
+      return {
+        label: 'STALE',
+        variant: 'outline' as const,
+        icon: AlertTriangle,
+        className: 'text-muted-foreground border-muted-foreground/30'
+      }
+  }
 }
 
 const BundleCard: React.FC<BundleCardProps> = ({
@@ -29,7 +96,8 @@ const BundleCard: React.FC<BundleCardProps> = ({
   loadingButtons,
   successButtons,
   errorButtons,
-  hasUnassignedFiles
+  hasUnassignedFiles,
+  lastRefresh
 }) => {
   const copyKey = `copy-${bundle.name}`
   const downloadKey = `download-${bundle.name}`
@@ -44,6 +112,11 @@ const BundleCard: React.FC<BundleCardProps> = ({
   const isDownloadError = errorButtons.has(downloadKey)
   const isRegenError = errorButtons.has(regenKey)
 
+  // Get bundle health status
+  const health = getBundleHealth(bundle, lastRefresh)
+  const statusInfo = getBundleStatusInfo(health, bundle)
+  const StatusIcon = statusInfo.icon
+
   return (
     <Card
       className={`cursor-pointer transition-all hover:shadow-md ${bundle.changed ? 'border-warning' : ''
@@ -52,9 +125,20 @@ const BundleCard: React.FC<BundleCardProps> = ({
     >
       <CardHeader className="pb-2">
         <div className="space-y-1.5">
-          <h3 className="text-sm font-thin truncate">{bundle.name}</h3>
-          <Badge variant={bundle.changed ? 'destructive' : 'secondary'} className="text-xs font-thin h-4 w-fit">
-            {bundle.changed ? 'CHANGED' : 'SYNCED'}
+          <div className="flex items-center gap-2">
+            <Box className="w-4 h-4" />
+            <h3 className="text-sm font-thin truncate">{bundle.name}</h3>
+          </div>
+          <Badge
+            variant={statusInfo.variant}
+            className={`text-xs font-thin h-4 w-fit flex items-center gap-1 ${statusInfo.className}`}
+            title={health === 'error' ? 'Bundle has been changed for >5min - sync may be failing' :
+              health === 'warning' ? 'Bundle is syncing or recently changed' :
+                health === 'stale' ? 'Data may be stale - no recent refresh' :
+                  'Bundle is healthy and synced'}
+          >
+            <StatusIcon className="w-2.5 h-2.5" />
+            {statusInfo.label}
           </Badge>
         </div>
       </CardHeader>

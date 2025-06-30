@@ -131,6 +131,16 @@
   --color-semantic-business_logic: #81c784;
   --color-semantic-algorithm: #ba68c8;
   --color-semantic-unknown: #b0bec5;
+  --prism-keyword: #d73a49;
+  --prism-string: #032f62;
+  --prism-comment: #6a737d;
+  --prism-function: #6f42c1;
+  --prism-number: #005cc5;
+  --prism-operator: #d73a49;
+  --prism-punctuation: #24292e;
+  --prism-class: #6f42c1;
+  --prism-property: #005cc5;
+  --prism-variable: #e36209;
 }
 
 .dark {
@@ -188,6 +198,16 @@
   --color-semantic-business_logic: #388e3c;
   --color-semantic-algorithm: #6a1b9a;
   --color-semantic-unknown: #37474f;
+  --prism-keyword: #ff7b72;
+  --prism-string: #a5d6ff;
+  --prism-comment: #8b949e;
+  --prism-function: #d2a8ff;
+  --prism-number: #79c0ff;
+  --prism-operator: #ff7b72;
+  --prism-punctuation: #c9d1d9;
+  --prism-class: #d2a8ff;
+  --prism-property: #79c0ff;
+  --prism-variable: #ffa657;
 }
 
 @layer base {
@@ -218,4 +238,110 @@
 .js-plotly-plot .hoverlayer .hovertext .hovertext-bg,
 .js-plotly-plot .hoverlayer .hovertext .hovertext-arrow {
   display: none !important;
+}
+
+/* Custom Prism.js theme overrides for better integration with our design system */
+pre[class*="language-"] {
+  background: var(--muted);
+  border-radius: var(--radius);
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+code[class*="language-"] {
+  background: none;
+  color: var(--foreground);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  text-shadow: none;
+}
+
+.token.keyword {
+  color: var(--prism-keyword);
+}
+
+.token.string {
+  color: var(--prism-string);
+}
+
+.token.comment {
+  color: var(--prism-comment);
+  font-style: italic;
+}
+
+.token.function {
+  color: var(--prism-function);
+}
+
+.token.number {
+  color: var(--prism-number);
+}
+
+.token.operator {
+  color: var(--prism-operator);
+}
+
+.token.punctuation {
+  color: var(--prism-punctuation);
+}
+
+.token.class-name {
+  color: var(--prism-class);
+}
+
+.token.property {
+  color: var(--prism-property);
+}
+
+.token.variable {
+  color: var(--prism-variable);
+}
+
+.token.boolean {
+  color: var(--prism-keyword);
+}
+
+.token.null {
+  color: var(--prism-keyword);
+}
+
+.token.undefined {
+  color: var(--prism-keyword);
+}
+
+.token.regex {
+  color: var(--prism-string);
+}
+
+.token.tag {
+  color: var(--prism-keyword);
+}
+
+.token.attr-name {
+  color: var(--prism-property);
+}
+
+.token.attr-value {
+  color: var(--prism-string);
+}
+
+/* Remove Prism's default background */
+.token.selector,
+.token.important,
+.token.atrule {
+  color: var(--prism-keyword);
+}
+
+/* Line numbers if needed */
+.line-numbers .line-numbers-rows {
+  border-right: 1px solid var(--border);
+}
+
+.line-numbers-rows > span:before {
+  color: var(--muted-foreground);
 }

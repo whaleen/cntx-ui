@@ -1,0 +1,14 @@
+{
+  "globalHidden": [],
+  "bundleSpecific": {
+    "debugging": [],
+    "server": [],
+    "frontend": [],
+    "config": [],
+    "activities": [],
+    "tests": [],
+    "docs": []
+  },
+  "userIgnorePatterns": [],
+  "disabledSystemPatterns": []
+}

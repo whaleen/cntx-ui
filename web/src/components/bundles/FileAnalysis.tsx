@@ -21,17 +21,17 @@ const FileAnalysis: React.FC<FileAnalysisProps> = ({
 
   return (
     <Card className="border-warning/20 bg-warning/5">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-warning">
-          <AlertTriangle className="w-4 h-4" />
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-warning text-sm font-medium">
+          <AlertTriangle className="w-3 h-3" />
           Files Needing Bundle Assignment ({undercategorizedFiles.length})
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground font-thin">
           These files are only in the 'master' bundle and should be assigned to more specific bundles for better organization.
         </p>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-2 max-h-60 overflow-y-auto">
+      <CardContent className="pt-0">
+        <div className="space-y-1 max-h-80 overflow-y-auto">
           {undercategorizedFiles.map((fileInfo) => (
             <UndercategorizedFileRow
               key={fileInfo.path}
@@ -47,17 +47,18 @@ const FileAnalysis: React.FC<FileAnalysisProps> = ({
           ))}
         </div>
 
-        <div className="flex justify-between items-center pt-2 border-t border-warning/20">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex justify-between items-center pt-3 mt-3 border-t border-warning/20">
+          <span className="text-xs text-muted-foreground">
             {undercategorizedFiles.length} files need better bundle assignment
           </span>
           <Button
             variant="outline"
             size="sm"
             onClick={loadFileAnalysis}
+            className="h-6 px-2 text-xs"
           >
-            <RefreshCw className="w-3 h-3 mr-1" />
-            Refresh Analysis
+            <RefreshCw className="w-2.5 h-2.5 mr-1" />
+            Refresh
           </Button>
         </div>
       </CardContent>

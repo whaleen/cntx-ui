@@ -5,7 +5,10 @@ node_modules/
 .git/
 
 # Build artifacts we don't want
-.cntx/
+.cntx/bundle-states.json
+.cntx/bundles.json
+.cntx/semantic-cache.json
+.cntx/activities/activities/
 *.bak
 *.tgz
 build.sh
@@ -22,4 +25,3 @@ web/eslint.config.js
 web/components.json
 web/index.html
 web/public/
-web/README.md

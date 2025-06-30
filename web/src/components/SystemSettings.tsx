@@ -4,8 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
-import { Alert, AlertDescription } from './ui/alert'
-import { FileText, Save, RotateCcw, Info, Copy, ExternalLink } from 'lucide-react'
+import { FileText, Save, RotateCcw, Copy, ExternalLink } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { EditorPreference } from './EditorPreference'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
@@ -18,7 +17,7 @@ const fetchFileContent = async (endpoint: string): Promise<string> => {
 }
 
 const saveFileContent = async ({ endpoint, content }: { endpoint: string, content: string }) => {
-  const response = await fetch(`http://localhost:3333/api/${endpoint}` , {
+  const response = await fetch(`http://localhost:3333/api/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content })

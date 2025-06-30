@@ -4,8 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { RefreshCw, X, Layers, TreePine, BarChart3, File } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { X, Boxes, TreePine, BarChart3, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toast } from '@/lib/toast'
 
 // Import new bundle components
@@ -14,10 +14,8 @@ import {
   BundleDetails,
   ProjectFiles,
   FileAnalysis,
-  BundleLegend,
   useFileSizes,
   type Bundle,
-  type FileInfo
 } from './bundles'
 
 const fetchBundles = async (): Promise<Bundle[]> => {
@@ -38,23 +36,99 @@ export function BundleList() {
   const [selectedBundle, setSelectedBundle] = useState<string | null>(null)
   const [editingBundles, setEditingBundles] = useState<Set<string>>(new Set())
   const [loadingButtons, setLoadingButtons] = useState<Set<string>>(new Set())
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [bundleUpdates, setBundleUpdates] = useState<Map<string, { changed: boolean, lastSync: Date }>>(new Map())
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
 
   // Get file sizes
   const fileSizes = useFileSizes()
 
   // Use React Query for proper state management
-  const { data: bundles = [], isLoading } = useQuery({
+  const { data: bundles = [], isLoading, isFetching: isFetchingBundles, dataUpdatedAt: bundlesUpdatedAt } = useQuery({
     queryKey: ['bundles'],
     queryFn: fetchBundles,
     refetchInterval: 5000,
     refetchOnWindowFocus: true
   })
-  const { data: allFiles = [] } = useQuery({
+  const { data: allFiles = [], isFetching: isFetchingFiles, dataUpdatedAt: filesUpdatedAt } = useQuery({
     queryKey: ['allFiles'],
     queryFn: fetchAllFiles,
     refetchInterval: 30000,
     refetchOnWindowFocus: true
   })
+
+  // Track when data was last updated
+  useEffect(() => {
+    const latestUpdate = Math.max(bundlesUpdatedAt, filesUpdatedAt)
+    if (latestUpdate > 0) {
+      setLastRefresh(new Date(latestUpdate))
+    }
+  }, [bundlesUpdatedAt, filesUpdatedAt])
+
+  // WebSocket connection for real-time bundle updates
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:3333')
+
+    ws.onopen = () => {
+      console.log('Bundle updates WebSocket connected')
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const update = JSON.parse(event.data)
+        console.log('WebSocket message received:', update)
+
+        switch (update.type) {
+          case 'bundle-sync-started':
+            setBundleUpdates(prev => new Map(prev).set(update.bundleName, {
+              changed: true,
+              lastSync: new Date(update.timestamp)
+            }))
+            toast.info(`Syncing ${update.bundleName}`)
+            break
+
+          case 'bundle-sync-completed':
+            setBundleUpdates(prev => new Map(prev).set(update.bundleName, {
+              changed: false,
+              lastSync: new Date(update.timestamp)
+            }))
+            toast.success(`Synced ${update.bundleName}`)
+            // Also invalidate queries to get fresh data
+            queryClient.invalidateQueries({ queryKey: ['bundles'] })
+            break
+
+          case 'bundle-sync-failed':
+            setBundleUpdates(prev => new Map(prev).set(update.bundleName, {
+              changed: true,
+              lastSync: new Date(update.timestamp)
+            }))
+            toast.error(`Sync failed for ${update.bundleName}`, update.error)
+            break
+
+          case 'bundle-file-changed':
+            setBundleUpdates(prev => new Map(prev).set(update.bundleName, {
+              changed: true,
+              lastSync: new Date(update.timestamp)
+            }))
+            break
+        }
+      } catch (error) {
+        console.error('Error parsing bundle update:', error)
+      }
+    }
+
+    ws.onclose = () => {
+      console.log('Bundle updates WebSocket disconnected')
+    }
+
+    ws.onerror = (error) => {
+      console.error('Bundle updates WebSocket error:', error)
+    }
+
+    return () => {
+      ws.close()
+    }
+  }, [queryClient])
 
   // Calculate available files: all project files (BundleDetails will filter based on current bundle)
   const availableFiles = (() => {
@@ -62,12 +136,12 @@ export function BundleList() {
     return allFiles
   })()
 
-  const selectBundle = (bundleName: string) => {
+  const selectBundle = useCallback((bundleName: string) => {
     setSelectedBundle(selectedBundle === bundleName ? null : bundleName)
-  }
+  }, [selectedBundle])
 
   // FIX: Real edit mode toggle
-  const toggleEditMode = (bundleName: string) => {
+  const toggleEditMode = useCallback((bundleName: string) => {
     setEditingBundles(prev => {
       const newSet = new Set(prev)
       if (newSet.has(bundleName)) {
@@ -77,29 +151,72 @@ export function BundleList() {
       }
       return newSet
     })
-  }
+  }, [])
 
-  const getFileBundles = (filePath: string) => {
+  const getFileBundles = useCallback((filePath: string) => {
     return bundles.filter(bundle => bundle.files.includes(filePath)).map(b => b.name)
-  }
+  }, [bundles])
 
-  const isFileOnlyInMaster = (filePath: string) => {
+  const isFileOnlyInMaster = useCallback((filePath: string) => {
     const fileBundles = getFileBundles(filePath)
     return fileBundles.length === 1 && fileBundles[0] === 'master'
-  }
+  }, [getFileBundles])
 
-  const hasUnassignedFiles = (bundle: Bundle) => {
+  const hasUnassignedFiles = useCallback((bundle: Bundle) => {
     return bundle.files.some(file => isFileOnlyInMaster(file))
-  }
+  }, [isFileOnlyInMaster])
+
+  // Memoize undercategorized files calculation to prevent unnecessary re-computations
+  const undercategorizedFiles = useMemo(() => {
+    return bundles
+      .filter(b => b.name === 'master')
+      .flatMap(b => b.files.filter(f => isFileOnlyInMaster(f)))
+      .map(f => ({ path: f, bundles: ['master'] }))
+  }, [bundles])
+
+  const undercategorizedFilesCount = useMemo(() => {
+    return undercategorizedFiles.length
+  }, [undercategorizedFiles])
+
+  // Memoize bundle processing to avoid recalculating on every render
+  const processedBundles = useMemo(() => {
+    return bundles.map((bundle) => {
+      const realtimeUpdate = bundleUpdates.get(bundle.name)
+      return {
+        ...bundle,
+        changed: realtimeUpdate?.changed ?? bundle.changed,
+        lastSync: realtimeUpdate?.lastSync
+      }
+    })
+  }, [bundles, bundleUpdates])
+
+  // Memoize expensive calculations
+  const bundleStats = useMemo(() => {
+    return bundles.map(bundle => ({
+      name: bundle.name,
+      hasUnassignedFiles: hasUnassignedFiles(bundle)
+    }))
+  }, [bundles])
 
   // --- Add/Remove Functions ---
-  const invalidateAll = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['bundles'] })
-    await queryClient.invalidateQueries({ queryKey: ['allFiles'] })
-  }
+  const invalidateAll = useCallback(async () => {
+    setIsManualRefreshing(true)
+    try {
+      // Use Promise.all to run queries in parallel
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['bundles'] }),
+        queryClient.invalidateQueries({ queryKey: ['allFiles'] })
+      ])
+      toast.success('Data refreshed')
+    } catch (error) {
+      toast.error('Failed to refresh data')
+    } finally {
+      setIsManualRefreshing(false)
+    }
+  }, [queryClient])
 
   // --- Bundle Action Functions ---
-  const regenerateBundle = async (bundleName: string) => {
+  const regenerateBundle = useCallback(async (bundleName: string) => {
     const key = `regen-${bundleName}`
     setLoadingButtons(prev => new Set(prev).add(key))
     try {
@@ -119,9 +236,9 @@ export function BundleList() {
     } finally {
       setLoadingButtons(prev => { const newSet = new Set(prev); newSet.delete(key); return newSet })
     }
-  }
+  }, [invalidateAll])
 
-  const copyBundle = async (bundleName: string) => {
+  const copyBundle = useCallback(async (bundleName: string) => {
     const key = `copy-${bundleName}`
     setLoadingButtons(prev => new Set(prev).add(key))
     try {
@@ -133,9 +250,9 @@ export function BundleList() {
     } finally {
       setLoadingButtons(prev => { const newSet = new Set(prev); newSet.delete(key); return newSet })
     }
-  }
+  }, [])
 
-  const downloadBundle = async (bundleName: string) => {
+  const downloadBundle = useCallback(async (bundleName: string) => {
     const key = `download-${bundleName}`
     setLoadingButtons(prev => new Set(prev).add(key))
     try {
@@ -147,9 +264,9 @@ export function BundleList() {
     } finally {
       setLoadingButtons(prev => { const newSet = new Set(prev); newSet.delete(key); return newSet })
     }
-  }
+  }, [])
 
-  const removeFileFromBundle = async (fileName: string, bundleName: string) => {
+  const removeFileFromBundle = useCallback(async (fileName: string, bundleName: string) => {
     const key = `remove-${bundleName}-${fileName}`
     setLoadingButtons(prev => new Set(prev).add(key))
     try {
@@ -170,9 +287,9 @@ export function BundleList() {
     } finally {
       setLoadingButtons(prev => { const newSet = new Set(prev); newSet.delete(key); return newSet })
     }
-  }
+  }, [invalidateAll])
 
-  const addFileToBundle = async (fileName: string, bundleName: string) => {
+  const addFileToBundle = useCallback(async (fileName: string, bundleName: string) => {
     const key = `add-${bundleName}-${fileName}`
     setLoadingButtons(prev => new Set(prev).add(key))
     try {
@@ -193,9 +310,9 @@ export function BundleList() {
     } finally {
       setLoadingButtons(prev => { const newSet = new Set(prev); newSet.delete(key); return newSet })
     }
-  }
+  }, [invalidateAll])
 
-  const addFilesToBundle = async (fileNames: string[], bundleName: string) => {
+  const addFilesToBundle = useCallback(async (fileNames: string[], bundleName: string) => {
     const key = `bulk-add-${bundleName}`
     setLoadingButtons(prev => new Set(prev).add(key))
     try {
@@ -216,9 +333,9 @@ export function BundleList() {
     } finally {
       setLoadingButtons(prev => { const newSet = new Set(prev); newSet.delete(key); return newSet })
     }
-  }
+  }, [invalidateAll])
 
-  const removeFilesFromBundle = async (fileNames: string[], bundleName: string) => {
+  const removeFilesFromBundle = useCallback(async (fileNames: string[], bundleName: string) => {
     const key = `bulk-remove-${bundleName}`
     setLoadingButtons(prev => new Set(prev).add(key))
     try {
@@ -239,93 +356,55 @@ export function BundleList() {
     } finally {
       setLoadingButtons(prev => { const newSet = new Set(prev); newSet.delete(key); return newSet })
     }
-  }
+  }, [invalidateAll])
 
   if (isLoading) return <div>Loading bundles...</div>
   if (!bundles) return <div>No bundles found</div>
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <BundleLegend undercategorizedFilesCount={bundles.filter(b => b.name === 'master').flatMap(b => b.files.filter(f => isFileOnlyInMaster(f))).length} />
-        <Button onClick={invalidateAll} variant="ghost" size="sm">
-          <RefreshCw className="mr-1" />
-        </Button>
-      </div>
-      <Tabs defaultValue="bundles" className="w-full">
+    <div className="h-full flex flex-col relative">
+      <Tabs defaultValue="bundles" className="w-full flex-1 flex flex-col min-h-0">
         <TabsList className="grid w-full grid-cols-3 bg-background">
           <TabsTrigger value="bundles" className="flex items-center gap-2">
-            <Layers className="w-4 h-4" />
+            <Boxes className="w-4 h-4 text-muted-foreground/75" />
             Bundles
           </TabsTrigger>
           <TabsTrigger value="files" className="flex items-center gap-2">
-            <TreePine className="w-4 h-4" />
+            <TreePine className="w-4 h-4 text-muted-foreground/75" />
             Project Files
           </TabsTrigger>
           <TabsTrigger value="analysis" className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4" />
+            <BarChart3 className="w-4 h-4 text-muted-foreground/75" />
             File Analysis
-            {bundles.filter(b => b.name === 'master').flatMap(b => b.files.filter(f => isFileOnlyInMaster(f))).length > 0 && (
-              <Badge variant="outline" className="ml-1 bg-warning/10 text-warning border-warning/20 h-4 px-1 text-xs">
-                {bundles.filter(b => b.name === 'master').flatMap(b => b.files.filter(f => isFileOnlyInMaster(f))).length}
+            {undercategorizedFilesCount > 0 && (
+              <Badge variant="outline" className="ml-1 bg-warning/10 text-warning border-warning/20 h-4 px-1 py-1 text-xs">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                {undercategorizedFilesCount}
               </Badge>
             )}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="bundles" className="space-y-4">
-          <div className="flex flex-col lg:flex-row gap-6">
-            <div className={`${selectedBundle ? 'hidden lg:block lg:w-1/2' : 'w-full'} transition-all`}>
-              <div className={`grid grid-cols-1 gap-4 ${selectedBundle ? 'md:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}>
-                {bundles && Array.isArray(bundles) ? bundles.map((bundle) => (
-                  <BundleCard
-                    key={bundle.name}
-                    bundle={bundle}
-                    isSelected={selectedBundle === bundle.name}
-                    onSelect={selectBundle}
-                    onRegenerate={regenerateBundle}
-                    onCopy={copyBundle}
-                    onDownload={downloadBundle}
-                    loadingButtons={loadingButtons}
-                    successButtons={new Set()}
-                    errorButtons={new Set()}
-                    hasUnassignedFiles={hasUnassignedFiles(bundle)}
-                  />
-                )) : <div>No bundles available</div>}
-              </div>
-            </div>
-            {selectedBundle && (
-              <div className={`${selectedBundle ? 'block' : 'hidden'} ${selectedBundle ? 'fixed inset-0 z-50 bg-background lg:relative lg:inset-auto lg:z-auto lg:w-1/2' : ''} transition-all flex flex-col`}>
-                <div className="lg:hidden sticky top-0 bg-background border-b p-4 flex justify-between items-center flex-shrink-0">
-                  <h3 className="font-thin">Bundle Details</h3>
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedBundle(null)}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 lg:p-0">
-                  {(() => {
-                    const bundle = bundles?.find((b: Bundle) => b.name === selectedBundle)
-                    if (!bundle) return <div>Bundle not found</div>
-                    return (
-                      <BundleDetails
-                        bundle={bundle}
-                        bundles={bundles}
-                        selectedBundleName={selectedBundle}
-                        editingBundles={editingBundles}
-                        availableFiles={availableFiles}
-                        loadingButtons={loadingButtons}
-                        toggleEditMode={toggleEditMode}
-                        removeFileFromBundle={removeFileFromBundle}
-                        addFileToBundle={addFileToBundle}
-                        addFilesToBundle={addFilesToBundle}
-                        removeFilesFromBundle={removeFilesFromBundle}
-                        getFileBundles={getFileBundles}
-                        fileSizes={fileSizes}
-                      />
-                    )
-                  })()}
-                </div>
-              </div>
-            )}
+        <TabsContent value="bundles" className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {processedBundles && Array.isArray(processedBundles) ? processedBundles.map((bundle) => {
+              const bundleStat = bundleStats.find(stat => stat.name === bundle.name)
+              return (
+                <BundleCard
+                  key={bundle.name}
+                  bundle={bundle}
+                  isSelected={selectedBundle === bundle.name}
+                  onSelect={selectBundle}
+                  onRegenerate={regenerateBundle}
+                  onCopy={copyBundle}
+                  onDownload={downloadBundle}
+                  loadingButtons={loadingButtons}
+                  successButtons={new Set()}
+                  errorButtons={new Set()}
+                  hasUnassignedFiles={bundleStat?.hasUnassignedFiles ?? false}
+                  lastRefresh={lastRefresh}
+                />
+              )
+            }) : <div>No bundles available</div>}
           </div>
         </TabsContent>
         <TabsContent value="files" className="space-y-4">
@@ -333,7 +412,7 @@ export function BundleList() {
         </TabsContent>
         <TabsContent value="analysis" className="space-y-4">
           <FileAnalysis
-            undercategorizedFiles={bundles.filter(b => b.name === 'master').flatMap(b => b.files.filter(f => isFileOnlyInMaster(f)).map(f => ({ path: f, bundles: ['master'] })))}
+            undercategorizedFiles={undercategorizedFiles}
             bundles={bundles}
             addFileToBundle={addFileToBundle}
             loadFileAnalysis={invalidateAll}
@@ -344,6 +423,44 @@ export function BundleList() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Bundle Details - Full screen overlay on all screen sizes */}
+      {selectedBundle && (() => {
+        const selectedBundleData = bundles.find((b: Bundle) => b.name === selectedBundle)
+        if (!selectedBundleData) return null
+
+        return (
+          <div className="fixed top-0 left-0 right-0 bottom-10 z-50 bg-background flex flex-col">
+            <div className="sticky top-0 bg-background border-b p-4 flex justify-between items-center flex-shrink-0">
+              <h3 className="font-thin text-sm flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-muted-foreground" />
+                Bundle Details
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedBundle(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <BundleDetails
+                bundle={selectedBundleData}
+                bundles={bundles}
+                selectedBundleName={selectedBundle}
+                editingBundles={editingBundles}
+                availableFiles={availableFiles}
+                loadingButtons={loadingButtons}
+                toggleEditMode={toggleEditMode}
+                removeFileFromBundle={removeFileFromBundle}
+                addFileToBundle={addFileToBundle}
+                addFilesToBundle={addFilesToBundle}
+                removeFilesFromBundle={removeFilesFromBundle}
+                getFileBundles={getFileBundles}
+                fileSizes={fileSizes}
+                onBundleSelect={selectBundle}
+              />
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -421,7 +421,9 @@ export function SystemStatus() {
                             {testResult.status === 'success' ? (
                               <CheckCircle className="w-4 h-4 text-green-600" />
                             ) : testResult.status === 'error' ? (
-                              <AlertTriangle className="w-4 h-4 text-red-600" title={testResult.error} />
+                              <div title={testResult.error}>
+                                <AlertTriangle className="w-4 h-4 text-red-600" />
+                              </div>
                             ) : (
                               <div className="w-4 h-4 bg-gray-300 rounded-full" />
                             )}
@@ -503,7 +505,9 @@ export function SystemStatus() {
                                   testResult.status === 'available' ? (
                                     <CheckCircle className="w-4 h-4 text-green-600" />
                                   ) : (
-                                    <AlertTriangle className="w-4 h-4 text-red-600" title={testResult.error} />
+                                    <div title={testResult.error}>
+                                <AlertTriangle className="w-4 h-4 text-red-600" />
+                              </div>
                                   )
                                 ) : (
                                   <div className="w-4 h-4 bg-gray-300 rounded-full" />
@@ -533,7 +537,9 @@ export function SystemStatus() {
                               testResult.status === 'available' ? (
                                 <CheckCircle className="w-4 h-4 text-green-600" />
                               ) : (
-                                <AlertTriangle className="w-4 h-4 text-red-600" title={testResult.error} />
+                                <div title={testResult.error}>
+                                <AlertTriangle className="w-4 h-4 text-red-600" />
+                              </div>
                               )
                             ) : (
                               <div className="w-4 h-4 bg-gray-300 rounded-full" />

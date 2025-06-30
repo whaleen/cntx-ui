@@ -1,7 +1,7 @@
 {
   "name": "cntx-ui",
   "type": "module",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "File context management tool with web UI and MCP server for AI development workflows - bundle project files for LLM consumption",
   "keywords": [
     "ai-development",
@@ -34,8 +34,10 @@
     "server.js",
     "lib/",
     "README.md",
-    "web/dist",
-    "mcp-config-example.json"
+    "web/dist/",
+    "web/README.md",
+    "mcp-config-example.json",
+    "templates/"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -47,6 +49,7 @@
     "dev:web": "cd web && npm run dev",
     "prebuild": "npm run build:web",
     "prepublishOnly": "npm run build:web",
+    "prepack": "npm run build:web",
     "test:local": "npm pack && npm install -g ./cntx-ui-2.0.0.tgz"
   },
   "dependencies": {

@@ -3,7 +3,7 @@ node_modules/
 web/node_modules/
 
 # Build outputs
-web/dist/
+# web/dist/ - commented out so npm pack includes it
 *.tgz
 *.tar.gz
 

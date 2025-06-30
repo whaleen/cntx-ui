@@ -14,7 +14,6 @@ import {
   BundleDetails,
   ProjectFiles,
   FileAnalysis,
-  BundleLegend,
   useFileSizes,
   type Bundle,
   type FileInfo
@@ -393,16 +392,22 @@ export function BundleListNew() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <BundleLegend undercategorizedFilesCount={undercategorizedFiles.length} />
+    <div className="space-y-4 h-full flex flex-col">
+      <div className="flex justify-between items-center flex-shrink-0">
+        <div className="text-sm text-muted-foreground">
+          {undercategorizedFiles.length > 0 && (
+            <Badge variant="secondary">
+              {undercategorizedFiles.length} uncategorized files
+            </Badge>
+          )}
+        </div>
         <Button onClick={manualRefresh} variant="ghost" size="sm">
           <RefreshCw className="mr-1" />
         </Button>
       </div>
 
-      <Tabs defaultValue="bundles" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-background">
+      <Tabs defaultValue="bundles" className="w-full flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-3 bg-background flex-shrink-0">
           <TabsTrigger value="bundles" className="flex items-center gap-2">
             <Layers className="w-4 h-4" />
             Bundles
@@ -422,11 +427,11 @@ export function BundleListNew() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="bundles" className="space-y-4">
+        <TabsContent value="bundles" className="flex-1 flex flex-col min-h-0">
           {/* Responsive Layout */}
-          <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
             {/* Bundle Grid */}
-            <div className={`${selectedBundle ? 'hidden lg:block lg:w-1/2' : 'w-full'} transition-all`}>
+            <div className={`${selectedBundle ? 'hidden lg:block lg:w-1/2' : 'w-full'} transition-all flex-shrink-0`}>
               <div className={`grid grid-cols-1 gap-4 ${selectedBundle
                 ? 'md:grid-cols-2'
                 : 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
@@ -452,7 +457,7 @@ export function BundleListNew() {
             {/* Detail Panel */}
             {selectedBundle && (
               <div className={`${selectedBundle ? 'block' : 'hidden'} ${selectedBundle ? 'fixed inset-0 z-50 bg-background lg:relative lg:inset-auto lg:z-auto lg:w-1/2' : ''
-                } transition-all flex flex-col`}>
+                } transition-all flex flex-col flex-1 min-h-0`}>
                 {/* Mobile Close Button */}
                 <div className="lg:hidden sticky top-0 bg-background border-b p-4 flex justify-between items-center flex-shrink-0">
                   <h3 className="font-thin">Bundle Details</h3>
@@ -465,7 +470,7 @@ export function BundleListNew() {
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 lg:p-0">
+                <div className="flex-1 overflow-hidden p-4 lg:p-0">
                   {(() => {
                     const bundle = bundles?.find((b: Bundle) => b.name === selectedBundle)
                     if (!bundle) return <div>Bundle not found</div>
@@ -478,18 +483,13 @@ export function BundleListNew() {
                         editingBundles={editingBundles}
                         availableFiles={availableFiles}
                         loadingButtons={loadingButtons}
-                        successButtons={successButtons}
-                        errorButtons={errorButtons}
                         toggleEditMode={toggleEditMode}
                         removeFileFromBundle={removeFileFromBundle}
                         addFileToBundle={addFileToBundle}
                         addFilesToBundle={addFilesToBundle}
                         removeFilesFromBundle={removeFilesFromBundle}
                         getFileBundles={getFileBundles}
-                        getFileIcon={getFileIcon}
                         fileSizes={fileSizes}
-                        availableFilesSearch={''}
-                        setAvailableFilesSearch={() => { }}
                       />
                     )
                   })()}

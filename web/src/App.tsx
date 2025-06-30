@@ -7,15 +7,16 @@ import { SystemStatus } from './components/SystemStatus'
 import { SemanticChunks } from './components/SemanticChunks'
 import { Button } from './components/ui/button'
 import {
-  Layers,
+  Boxes,
   Sparkles,
   CheckCircle,
   HelpCircle,
   Settings,
-  Database,
   X,
   Activity,
-  PanelLeft
+  PanelLeft,
+  SquaresUnite,
+  DatabaseZap
 } from 'lucide-react'
 import { ThemeToggle } from './components/theme-toggle'
 import { VectorVisualization } from './components/VectorVisualization'
@@ -29,17 +30,17 @@ const navigationItems = [
   {
     id: 'bundles',
     label: 'Bundles & Files',
-    icon: Layers
+    icon: Boxes
   },
   {
     id: 'semantic',
     label: 'Semantic Chunks',
-    icon: Sparkles
+    icon: SquaresUnite
   },
   {
     id: 'vector-db',
     label: 'Vector Database',
-    icon: Database
+    icon: DatabaseZap
   },
   {
     id: 'activities',
@@ -160,9 +161,10 @@ function App() {
     switch (activeSection) {
       case 'bundles':
         return (
-          <div className="space-y-6">
-
-            <BundleList />
+          <div className="flex-1 min-h-0 flex">
+            <main className="flex-1 min-h-0 flex flex-col">
+              <BundleList />
+            </main>
           </div>
         )
       case 'semantic':
@@ -232,9 +234,9 @@ function App() {
           <div className="h-16 border-b flex items-center px-4 flex-shrink-0">
             <div className="flex items-center gap-4 flex-1">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-                  <Layers className="w-3 h-3 text-primary-foreground" />
-                </div>
+                {/* <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
+                  <Boxes className="w-3 h-3 text-primary-foreground" />
+                </div> */}
                 <div>
                   <h2 className="text-sm font-thin">cntx-ui</h2>
                   <p className="text-xs text-muted-foreground font-thin">Context Manager</p>
@@ -257,9 +259,9 @@ function App() {
             {!sidebarCollapsed && (
               <div className="p-4 border-b flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-                    <Layers className="w-3 h-3 text-primary-foreground" />
-                  </div>
+                  {/* <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
+                    <Boxes className="w-3 h-3 text-primary-foreground" />
+                  </div> */}
                   <div className="flex-1">
                     <h2 className="text-sm font-thin">cntx-ui</h2>
                     <p className="text-xs text-muted-foreground font-thin">Context Manager</p>

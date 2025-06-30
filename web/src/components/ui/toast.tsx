@@ -1,7 +1,7 @@
 import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "lucide-react"
+import { X, CheckCircle, AlertTriangle, Info, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const toastVariants = cva(
@@ -11,13 +11,13 @@ const toastVariants = cva(
       variant: {
         default: "border bg-background text-foreground",
         destructive:
-          "destructive border-destructive bg-destructive text-destructive-foreground",
+          "destructive border-destructive bg-card text-card-foreground",
         success:
-          "border-[color:var(--color-success)]/20 bg-[color:var(--color-success)]/5 text-[color:var(--color-success)]",
+          "border-[color:var(--color-success)] bg-card text-card-foreground",
         warning:
-          "border-[color:var(--color-warning)]/20 bg-[color:var(--color-warning)]/5 text-[color:var(--color-warning)]",
+          "border-[color:var(--color-warning)] bg-card text-card-foreground",
         info:
-          "border-[color:var(--color-info)]/20 bg-[color:var(--color-info)]/5 text-[color:var(--color-info)]",
+          "border-[color:var(--color-info)] bg-card text-card-foreground",
       },
     },
     defaultVariants: {
@@ -35,7 +35,7 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px] gap-2",
       className
     )}
     {...props}
@@ -80,7 +80,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
+      "absolute right-2 top-2 rounded-md p-1 text-foreground/30 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-80 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
       className
     )}
     toast-close=""
@@ -97,7 +97,7 @@ const ToastTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Title
     ref={ref}
-    className={cn("text-sm font-thin", className)}
+    className={cn("text-xs font-thin", className)}
     {...props}
   />
 ))
@@ -109,11 +109,79 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn("text-sm opacity-90", className)}
+    className={cn("text-xs opacity-70", className)}
     {...props}
   />
 ))
 ToastDescription.displayName = ToastPrimitives.Description.displayName
+
+const ToastIcon = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { variant?: "default" | "destructive" | "success" | "warning" | "info" }
+>(({ className, variant = "default", ...props }, ref) => {
+  const IconComponent = {
+    default: Info,
+    destructive: AlertCircle,
+    success: CheckCircle,
+    warning: AlertTriangle,
+    info: Info,
+  }[variant]
+
+  const iconColorClass = {
+    default: "text-muted-foreground",
+    destructive: "text-destructive",
+    success: "text-[color:var(--color-success)]",
+    warning: "text-[color:var(--color-warning)]",
+    info: "text-[color:var(--color-info)]",
+  }[variant]
+
+  return (
+    <div
+      ref={ref}
+      className={cn("flex-shrink-0", className)}
+      {...props}
+    >
+      <IconComponent className={cn("h-4 w-4", iconColorClass)} />
+    </div>
+  )
+})
+ToastIcon.displayName = "ToastIcon"
+
+// Helper function to format text with selective styling
+const formatToastText = (text: string, variant?: "default" | "destructive" | "success" | "warning" | "info") => {
+  const colorMap = {
+    default: "text-foreground",
+    destructive: "text-destructive",
+    success: "text-[color:var(--color-success)]",
+    warning: "text-[color:var(--color-warning)]",
+    info: "text-[color:var(--color-info)]",
+  }
+
+  // Keywords that should be styled based on context
+  const keywords = {
+    success: ['added', 'created', 'saved', 'completed', 'success', 'done'],
+    destructive: ['error', 'failed', 'deleted', 'removed', 'warning'],
+    warning: ['warning', 'caution', 'alert'],
+    info: ['info', 'note', 'updated', 'changed']
+  }
+
+  let formattedText = text
+
+  // Make file names/paths bold (anything with extensions or paths)
+  formattedText = formattedText.replace(/([^\s]+\.[a-zA-Z0-9]+)/g, '<strong>$1</strong>')
+  formattedText = formattedText.replace(/([^\s]*\/[^\s]+)/g, '<strong>$1</strong>')
+
+  // Color specific keywords based on variant or context
+  Object.entries(keywords).forEach(([type, words]) => {
+    words.forEach(word => {
+      const regex = new RegExp(`\\b(${word})\\b`, 'gi')
+      const colorClass = colorMap[type as keyof typeof colorMap]
+      formattedText = formattedText.replace(regex, `<span class="${colorClass} font-medium">$1</span>`)
+    })
+  })
+
+  return { __html: formattedText }
+}
 
 type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>
 
@@ -129,4 +197,6 @@ export {
   ToastClose,
   ToastTitle,
   ToastDescription,
+  ToastIcon,
+  formatToastText,
 }

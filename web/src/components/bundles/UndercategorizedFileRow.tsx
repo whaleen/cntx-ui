@@ -4,9 +4,10 @@ import { Badge } from '../ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Input } from '../ui/input'
-import { Loader2 } from 'lucide-react'
+import { Loader2, File, ExternalLink, Plus } from 'lucide-react'
 import type { UndercategorizedFileRowProps } from './types'
-import { useBundleSuggestions, formatFileSize } from './utils'
+import { useBundleSuggestions, formatFileSize, getFileIconConfig } from './utils'
+import { toast } from '@/lib/toast'
 
 export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = ({
   fileInfo,
@@ -35,6 +36,9 @@ export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = (
   const handleSelect = async (value: string) => {
     if (value === '__create__') {
       setDialogOpen(true)
+      setSelectValue("")
+    } else if (value === '__ignore__') {
+      await handleIgnore()
       setSelectValue("")
     } else if (value) {
       setSelectLoading(true)
@@ -93,105 +97,135 @@ export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = (
     setTimeout(() => onRemove(fileInfo.path), 300)
   }
 
+  const openInEditor = async (filePath: string) => {
+    try {
+      const response = await fetch('http://localhost:3333/api/open-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to open file');
+      }
+      toast.success(`Opening ${filePath} in editor...`);
+    } catch (err) {
+      console.error('Failed to open in editor:', err);
+      toast.error(`Could not open file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  }
+
+  const fileName = fileInfo.path.split('/').pop() || fileInfo.path
+  const filePath = fileInfo.path.substring(0, fileInfo.path.lastIndexOf('/') + 1)
+
   return (
-    <div className={`flex items-center gap-2 p-3 rounded border border-warning/20 bg-background transition-all duration-300 ${isFadingOut ? 'opacity-0 h-0 overflow-hidden p-0 m-0' : ''}`}>
-      <div className="flex-1 min-w-0">
-        <div className="font-mono text-sm text-foreground truncate">
-          {fileInfo.path}
+    <div className={`flex items-center gap-2 py-0.5 px-1 rounded-sm group cursor-default transition-all duration-300 border border-warning/20 bg-warning/5 hover:bg-warning/10 ${isFadingOut ? 'opacity-0 h-0 overflow-hidden p-0 m-0' : ''}`}>
+      {/* File Info Section */}
+      <div className="flex items-center gap-1.5 flex-1">
+        <div className="flex-shrink-0">
+          <File className={getFileIconConfig(fileInfo.path).className} />
         </div>
-        <div className="flex items-center gap-2 mt-1">
-          <span className="text-xs text-muted-foreground">
-            Currently in: {currentBundleText === 'master' ? 'master only' : currentBundleText}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            • {formatFileSize(fileSizes[fileInfo.path] || 0)}
-          </span>
-          {loading ? (
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">Loading suggestions...</span>
-              <Loader2 className="w-3 h-3 animate-spin" />
-            </div>
-          ) : suggestions.length > 0 && (
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">Suggested:</span>
-              {suggestions.slice(0, 2).map((bundle) => (
-                <Badge key={`suggestion-${bundle}`} variant="outline" className="text-xs px-1 py-0">
+        <div
+          className="flex items-center gap-1.5 min-w-0 cursor-pointer group/file-link flex-1"
+          onClick={() => openInEditor(fileInfo.path)}
+          title={`Open ${fileInfo.path} in editor`}
+        >
+          <span className="text-xs text-muted-foreground font-thin group-hover/file-link:text-foreground/70 transition-colors duration-200">{filePath}</span>
+          <span className="text-xs text-foreground font-medium group-hover/file-link:text-primary transition-colors duration-200">{fileName}</span>
+          <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover/file-link:opacity-100 transition-opacity duration-200 flex-shrink-0" />
+        </div>
+      </div>
+
+      {/* Metadata Section */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <span className="text-xs text-muted-foreground">
+          {formatFileSize(fileSizes[fileInfo.path] || 0)}
+        </span>
+        
+        {/* Suggestions */}
+        {loading ? (
+          <div className="flex items-center gap-1">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="text-xs text-muted-foreground">Loading...</span>
+          </div>
+        ) : suggestions.length > 0 && (
+          <div className="flex gap-1">
+            {suggestions.slice(0, 2).map((bundle) => {
+              const key = `add-${bundle}-${fileInfo.path}`
+              const isLoading = loadingButtons.has(key)
+              return (
+                <Badge 
+                  key={`suggestion-${bundle}`} 
+                  variant="outline" 
+                  className="text-xs font-thin h-4 px-1.5 bg-primary/10 cursor-pointer hover:bg-primary/20 transition-colors duration-200 flex items-center gap-1"
+                  onClick={() => handleAddToBundle(bundle)}
+                  title={`Add to ${bundle} bundle`}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  ) : (
+                    <Plus className="w-2.5 h-2.5" />
+                  )}
                   {bundle}
                 </Badge>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-1 items-center">
+          {/* More options dropdown */}
+          <Select value={selectValue} onValueChange={handleSelect} disabled={isFadingOut || selectLoading}>
+            <SelectTrigger className="h-4 w-4 p-0 border-0 bg-transparent hover:bg-muted/50 opacity-60 hover:opacity-100 transition-all duration-200 [&>svg]:hidden">
+              {selectLoading ? (
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              ) : (
+                <span className="text-xs">⋯</span>
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              {availableBundles.map(name => (
+                <SelectItem key={name} value={name} className="text-xs">
+                  <div className="flex items-center gap-1">
+                    <Plus className="w-3 h-3" />
+                    Add to {name}
+                  </div>
+                </SelectItem>
               ))}
-            </div>
-          )}
+              <SelectItem value="__create__" className="text-xs italic text-muted-foreground">
+                + Create new bundle…
+              </SelectItem>
+              <SelectItem value="__ignore__" className="text-xs text-muted-foreground">
+                Ignore file
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
-      <div className="flex gap-1 flex-shrink-0 items-center">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleIgnore}
-          className="h-6 px-2 text-xs border-muted hover:bg-muted"
-          disabled={isFadingOut || loadingButtons.has(`ignore-${fileInfo.path}`)}
-        >
-          Ignore
-        </Button>
-        {(suggestions.length > 0 ? suggestions.slice(0, 2) : bundles.filter(b => b.name !== 'master').map(b => b.name).slice(0, 2)).map((bundleName) => {
-          const key = `add-${bundleName}-${fileInfo.path}`
-          const isLoading = loadingButtons.has(key)
-          return (
-            <Button
-              key={`action-${bundleName}`}
-              variant="outline"
-              size="sm"
-              onClick={() => handleAddToBundle(bundleName)}
-              className="h-6 px-2 text-xs"
-              disabled={isFadingOut || isLoading}
-            >
-              {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : `Add to ${bundleName}`}
+
+      {/* Dialog for creating a new bundle */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Create New Bundle</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            placeholder="Bundle name"
+            value={newBundleName}
+            onChange={e => setNewBundleName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreateBundle() }}
+            className="mt-2"
+            disabled={creating || loadingButtons.has(`add-${newBundleName}-${fileInfo.path}`)}
+          />
+          <DialogFooter>
+            <Button onClick={handleCreateBundle} disabled={creating || !newBundleName.trim()}>
+              {creating ? 'Creating…' : 'Create'}
             </Button>
-          )
-        })}
-        {/* Select for all bundles + create new */}
-        <Select value={selectValue} onValueChange={handleSelect} disabled={isFadingOut || selectLoading}>
-          <SelectTrigger className="h-6 px-2 text-xs w-28 border-muted">
-            {selectLoading ? (
-              <Loader2 className="w-3 h-3 animate-spin mx-auto" />
-            ) : (
-              <SelectValue placeholder="More…" />
-            )}
-          </SelectTrigger>
-          <SelectContent>
-            {availableBundles.map(name => (
-              <SelectItem key={name} value={name} className="text-xs">
-                Add to {name}
-              </SelectItem>
-            ))}
-            <SelectItem value="__create__" className="text-xs italic text-muted-foreground">
-              + Create new bundle…
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        {/* Dialog for creating a new bundle */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-xs">
-            <DialogHeader>
-              <DialogTitle>Create New Bundle</DialogTitle>
-            </DialogHeader>
-            <Input
-              autoFocus
-              placeholder="Bundle name"
-              value={newBundleName}
-              onChange={e => setNewBundleName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleCreateBundle() }}
-              className="mt-2"
-              disabled={creating || loadingButtons.has(`add-${newBundleName}-${fileInfo.path}`)}
-            />
-            <DialogFooter>
-              <Button onClick={handleCreateBundle} disabled={creating || !newBundleName.trim()}>
-                {creating ? 'Creating…' : 'Create'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

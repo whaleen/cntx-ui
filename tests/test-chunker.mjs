@@ -1,11 +1,11 @@
-import SemanticChunker from './lib/semantic-chunker.js';
+import SemanticSplitter from '../lib/semantic-splitter.js';
 
-const chunker = new SemanticChunker();
+const chunker = new SemanticSplitter();
 
 console.log('🔍 Analyzing web/src directory for semantic chunks...\n');
 
 try {
-  const result = await chunker.analyzeProject('.', ['web/src/**/*.{js,jsx,ts,tsx}']);
+  const result = await chunker.extractSemanticChunks('.', ['web/src/**/*.{js,jsx,ts,tsx}']);
   
   console.log('=== PROJECT ANALYSIS RESULTS ===\n');
   

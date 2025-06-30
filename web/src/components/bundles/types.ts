@@ -36,6 +36,7 @@ export interface BundleDetailViewProps {
   removeFilesFromBundle: (fileNames: string[], bundleName: string) => void
   getFileBundles: (filePath: string) => string[]
   fileSizes: Record<string, number>
+  onBundleSelect?: (bundleName: string) => void
 }
 
 export interface BundleCardProps {

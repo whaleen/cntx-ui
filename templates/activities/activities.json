@@ -1,0 +1,219 @@
+[
+  {
+    "title": "Create Project Bundles with Agent Assistance",
+    "description": "Set up organized bundles for a new codebase using agent assistance to analyze project structure and suggest appropriate file groupings.",
+    "desired_outcome": "Complete bundle coverage with logical groupings, clear documentation, and automated suggestions for new files. Improved context efficiency for LLM consumption.",
+    "references": [
+      ".cntx/activities/activities/create-project-bundles/README.md",
+      ".cntx/activities/activities/create-project-bundles/tasks.md",
+      ".cntx/activities/activities/create-project-bundles/progress.md"
+    ],
+    "status": "todo",
+    "tags": ["bundles", "agent-collaboration", "setup"],
+    "tasks": [
+      {
+        "title": "Project Analysis and Discovery",
+        "description": "Analyze project directory structure and identify main folders, file types, and architectural patterns.",
+        "status": "todo"
+      },
+      {
+        "title": "Bundle Strategy Design",
+        "description": "Propose initial bundle structure based on project analysis and define naming conventions.",
+        "status": "todo"
+      },
+      {
+        "title": "Bundle Configuration Implementation",
+        "description": "Create bundle definitions in .cntx/bundles.json and set up automatic file categorization rules.",
+        "status": "todo"
+      },
+      {
+        "title": "Documentation and Refinement",
+        "description": "Document bundle purposes, create usage guidelines, and refine structure based on testing.",
+        "status": "todo"
+      }
+    ]
+  },
+  {
+    "title": "API Audit, Refinement, and Documentation",
+    "description": "Review all existing API endpoints, refine their design for consistency and efficiency, and generate comprehensive documentation.",
+    "desired_outcome": "All API endpoints are consistent, efficient, and well-documented. API documentation is up-to-date and easily accessible.",
+    "references": [
+      ".cntx/activities/activities/api-audit/README.md",
+      ".cntx/activities/activities/api-audit/tasks.md",
+      ".cntx/activities/activities/api-audit/progress.md"
+    ],
+    "status": "todo",
+    "tags": ["general", "api"],
+    "tasks": [
+      {
+        "title": "Example",
+        "description": "lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+        "status": "todo"
+      }
+    ]
+  },
+  {
+    "title": "Agent Stories: Research and Optimization",
+    "description": "Create a comprehensive research activity to systematically test and discover optimal patterns for agent interactions with cntx-ui through the .cntx directory and MCP server.",
+    "desired_outcome": "Comprehensive coverage of agent interaction scenarios, documented best practices, and an actionable plan for continuous agent testing through the 'Agent Stories Cycle'.",
+    "references": [
+      ".cntx/activities/activities/agent-stories/README.md",
+      ".cntx/activities/activities/agent-stories/tasks.md",
+      ".cntx/activities/activities/agent-stories/progress.md"
+    ],
+    "status": "todo",
+    "tags": ["general", "agent"],
+    "tasks": [
+      {
+        "title": "Current State Analysis",
+        "description": "Analyze existing agent instructions, MCP server tools, and interaction patterns.",
+        "status": "todo"
+      }
+    ]
+  },
+  {
+    "title": "Heuristics Configuration Refactor",
+    "description": "Transform hardcoded heuristics into a configurable, agent-manageable system. Extract all code categorization logic into centralized configuration with agent activity framework integration.",
+    "desired_outcome": "All heuristics are externalized to configuration, agents can automatically refine categorization rules, and the system maintains complete backward compatibility while enabling intelligent self-improvement.",
+    "references": [
+      ".cntx/activities/activities/heuristics-refactor/README.md"
+    ],
+    "status": "todo",
+    "tags": ["general", "refactor"],
+    "tasks": [
+      {
+        "title": "Extract Purpose Detection Heuristics",
+        "description": "Extract hardcoded purpose detection patterns from semantic-splitter.js to heuristics-config.json",
+        "status": "todo"
+      },
+      {
+        "title": "Extract Bundle Suggestion Logic",
+        "description": "Extract bundle suggestion heuristics from BundleList.tsx to centralized config",
+        "status": "todo"
+      },
+      {
+        "title": "Create HeuristicsManager Service",
+        "description": "Build centralized service for loading and applying heuristics with caching and validation",
+        "status": "todo"
+      },
+      {
+        "title": "Implement Heuristics API Endpoints",
+        "description": "Create REST API for reading, updating, and managing heuristics configuration",
+        "status": "todo"
+      },
+      {
+        "title": "Build Agent Activity Framework",
+        "description": "Implement activity scheduler and execution system for agent-driven heuristics refinement",
+        "status": "todo"
+      },
+      {
+        "title": "Verify Backward Compatibility",
+        "description": "Ensure all existing functionality works identically after refactor",
+        "status": "todo"
+      }
+    ]
+  },
+  {
+    "title": "VS Code Extension",
+    "description": "Adapt the existing cntx-ui tool into a VS Code extension, providing an integrated experience within the editor.",
+    "desired_outcome": "A functional VS Code extension that embeds the cntx-ui, allowing users to manage their projects without leaving the editor. The extension will share a codebase with the standalone web application.",
+    "references": [
+      ".cntx/activities/activities/vscode-extension/README.md",
+      ".cntx/activities/activities/vscode-extension/tasks.md",
+      ".cntx/activities/activities/vscode-extension/progress.md"
+    ],
+    "status": "todo",
+    "tags": ["vscode", "feature"],
+    "tasks": [
+      {
+        "title": "Project Scaffolding",
+        "description": "Set up the basic file structure for a VS Code extension, including package.json, extension.ts, and a webpack.config.js.",
+        "status": "todo"
+      },
+      {
+        "title": "Implement Webview Panel",
+        "description": "Create the command and logic to open a WebviewPanel that loads the existing web/dist/index.html.",
+        "status": "todo"
+      },
+      {
+        "title": "Create Communication Bridge",
+        "description": "Develop an abstraction layer that handles messaging between the webview and the extension host, supporting both postMessage and WebSockets.",
+        "status": "todo"
+      },
+      {
+        "title": "Implement Activation Events",
+        "description": "Configure the extension to activate when a .cntx directory is found, when the Activity Bar icon is clicked, or when a command is run.",
+        "status": "todo"
+      },
+      {
+        "title": "Add Activity Bar Icon",
+        "description": "Create an icon for the extension and configure it to appear in the VS Code Activity Bar.",
+        "status": "todo"
+      },
+      {
+        "title": "Implement Command Palette Actions",
+        "description": "Add the cntx-ui: Start Server, cntx-ui: Stop Server, and cntx-ui: Open UI commands to the Command Palette.",
+        "status": "todo"
+      },
+      {
+        "title": "Build Initial Dashboard UI",
+        "description": "Create the simple dashboard view with controls for the server, a health status indicator, and a list of bundles.",
+        "status": "todo"
+      },
+      {
+        "title": "Backend Integration",
+        "description": "Connect the dashboard UI to the reused backend logic to control the server and fetch the bundle list.",
+        "status": "todo"
+      },
+      {
+        "title": "Documentation",
+        "description": "Update the project's README.md with instructions on how to build, run, and debug the new VS Code extension.",
+        "status": "todo"
+      },
+      {
+        "title": "Packaging and Testing",
+        "description": "Create a .vsix package for the extension and test its installation and functionality in a clean VS Code environment.",
+        "status": "todo"
+      }
+    ]
+  },
+  {
+    "title": "cntx-ui Init Defaults",
+    "description": "Define and implement a comprehensive default template for the .cntx directory, established by `cntx-ui init`.",
+    "desired_outcome": "A single command initializes a fully functional .cntx directory with all necessary defaults, compatible with the UI.",
+    "references": [
+      ".cntx/activities/activities/cntx-ui-init-defaults/README.md",
+      ".cntx/activities/activities/cntx-ui-init-defaults/tasks.md",
+      ".cntx/activities/activities/cntx-ui-init-defaults/progress.md"
+    ],
+    "status": "todo",
+    "tags": ["init", "defaults", "scaffolding"],
+    "tasks": [
+      {
+        "title": "Define Default .cntx Structure & Content",
+        "description": "Create templates for config, hidden-files, semantic-cache, activities, and agent-rules.",
+        "status": "todo"
+      },
+      {
+        "title": "Extend Existing cntx-ui init Command",
+        "description": "Modify the `init` command to copy the default .cntx structure to the user's project.",
+        "status": "todo"
+      },
+      {
+        "title": "Integrate Minimal Default Activities & Agent Rules",
+        "description": "Ensure the sample activities and agent rules are correctly loaded and displayed.",
+        "status": "todo"
+      },
+      {
+        "title": "Testing & Validation",
+        "description": "Write tests for the `init` command and verify the created .cntx directory.",
+        "status": "todo"
+      },
+      {
+        "title": "Documentation & Release Preparation",
+        "description": "Update documentation and prepare for release of the new `init` functionality.",
+        "status": "todo"
+      }
+    ]
+  }
+]
