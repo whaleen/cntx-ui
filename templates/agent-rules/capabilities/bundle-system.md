@@ -5,7 +5,7 @@ The bundle system provides logical organization of project files into meaningful
 
 ## When Available
 - Check for bundle endpoint: `GET /api/bundles`
-- Look for bundle configuration files: `.cntx/bundles.json`
+- Look for bundle configuration files: `.cntx/bundle-states.json`
 - Verify bundle status and organization
 
 ## Core Capabilities

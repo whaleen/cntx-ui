@@ -1,7 +1,7 @@
 ## Relevant Files
 
-- `.cntx/config.json` - Main configuration file that will be updated with bundle settings
-- `.cntx/bundles.json` - Bundle definitions file that will contain all bundle configurations
+- `.cntx/config.json` - Non-bundle configuration settings (editor preferences, etc.)
+- `.cntx/bundle-states.json` - Single source of truth for all bundle definitions and metadata
 - `lib/bundle-manager.js` - Core bundle management logic for processing and applying bundle rules
 - `web/src/components/BundleList.tsx` - UI component for displaying and managing bundles
 - `web/src/components/BundleDetails.tsx` - UI component for viewing individual bundle contents
@@ -27,8 +27,8 @@
   - [ ] 2.3 Create bundle descriptions that explain their purpose and contents
   - [ ] 2.4 Validate bundle strategy with user and refine based on feedback
 - [ ] 3.0 Bundle Configuration Implementation
-  - [ ] 3.1 Create bundle definitions in .cntx/bundles.json with detailed metadata
-  - [ ] 3.2 **CRITICAL**: Update .cntx/config.json with bundle patterns for tracking
+  - [ ] 3.1 Create bundle definitions in .cntx/bundle-states.json with patterns and metadata
+  - [ ] 3.2 **CRITICAL**: Use .cntx/bundle-states.json as single source of truth (no config.json bundle data)
   - [ ] 3.3 Set up automatic file categorization rules
   - [ ] 3.4 Configure bundle metadata (descriptions, tags, priorities)
   - [ ] 3.5 Test bundle rules with sample files to ensure proper categorization

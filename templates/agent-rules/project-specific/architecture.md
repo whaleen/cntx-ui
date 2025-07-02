@@ -61,7 +61,7 @@ cntx-ui/
 ├── .cntx/                        # Configuration and cache
 │   ├── activities/               # Agent task definitions
 │   ├── agent-rules/              # Modular agent instructions
-│   ├── bundles.json             # Bundle configuration
+│   ├── bundle-states.json       # Bundle configuration and metadata
 │   └── semantic-cache.json      # Analysis cache
 └── server.js                    # Main HTTP server and API
 ```

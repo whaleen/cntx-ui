@@ -23,7 +23,7 @@
       },
       {
         "title": "Bundle Configuration Implementation",
-        "description": "Create bundle definitions in .cntx/bundles.json and set up automatic file categorization rules.",
+        "description": "Create bundle definitions in .cntx/bundle-states.json and set up automatic file categorization rules.",
         "status": "todo"
       },
       {

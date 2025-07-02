@@ -16,13 +16,15 @@ import {
   Activity,
   PanelLeft,
   SquaresUnite,
-  DatabaseZap
+  DatabaseZap,
+  Database
 } from 'lucide-react'
 import { ThemeToggle } from './components/theme-toggle'
 import { VectorVisualization } from './components/VectorVisualization'
 import { Activities } from './components/Activities'
 import { SystemSettings } from './components/SystemSettings'
 import { Documentation } from './components/Documentation'
+import { DatabaseViewer } from './components/DatabaseViewer'
 
 const queryClient = new QueryClient()
 
@@ -41,6 +43,11 @@ const navigationItems = [
     id: 'vector-db',
     label: 'Vector Database',
     icon: DatabaseZap
+  },
+  {
+    id: 'database',
+    label: 'SQLite Database',
+    icon: Database
   },
   {
     id: 'activities',
@@ -181,6 +188,16 @@ function App() {
         return (
           <div className="space-y-6">
             <VectorVisualization />
+          </div>
+        )
+      case 'database':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-thin tracking-tight">SQLite Database</h1>
+              <p className="text-xs text-muted-foreground font-thin">Query and inspect the bundle database</p>
+            </div>
+            <DatabaseViewer />
           </div>
         )
       case 'activities':

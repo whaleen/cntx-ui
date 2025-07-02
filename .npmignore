@@ -6,7 +6,7 @@ node_modules/
 
 # Build artifacts we don't want
 .cntx/bundle-states.json
-.cntx/bundles.json
+.cntx/bundle-states.json
 .cntx/semantic-cache.json
 .cntx/activities/activities/
 *.bak

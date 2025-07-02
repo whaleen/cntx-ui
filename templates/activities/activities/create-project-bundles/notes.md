@@ -47,33 +47,29 @@ _Consider how bundle structure should accommodate project expansion_
 
 ### Sample Bundle Configurations
 
-**bundles.json** (detailed metadata):
+**bundle-states.json** (single source of truth):
 ```json
-{
-  "name": "ui-components",
-  "description": "Reusable UI components and design system elements",
-  "patterns": ["src/components/**/*.tsx", "src/ui/**/*.tsx"],
-  "exclude": ["**/*.test.tsx", "**/*.stories.tsx"],
-  "tags": ["ui", "components"],
-  "priority": 1
-}
-```
-
-**config.json** (tracking patterns):
-```json
-{
-  "bundles": {
-    "ui-components": [
-      "src/components/**/*.tsx",
-      "src/ui/**/*.tsx",
-      "!**/*.test.tsx",
-      "!**/*.stories.tsx"
-    ]
+[
+  {
+    "name": "ui-components",
+    "patterns": ["src/components/**/*.tsx", "src/ui/**/*.tsx"],
+    "files": ["src/components/Button.tsx", "src/ui/Card.tsx"],
+    "content": "",
+    "size": 45231,
+    "changed": false,
+    "generated": "2025-06-30T08:00:00.000Z"
   }
+]
+```
+
+**config.json** (non-bundle settings only):
+```json
+{
+  "editor": "cursor"
 }
 ```
 
-⚠️ **CRITICAL**: Both files must be updated for bundles to appear in the UI!
+⚠️ **CRITICAL**: Use .cntx/bundle-states.json as the single source of truth for all bundle data!
 
 ### File Organization Patterns
 - Component files: Component.tsx, Component.test.tsx, Component.stories.tsx

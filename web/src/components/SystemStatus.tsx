@@ -142,6 +142,7 @@ export function SystemStatus() {
   const [mcpTests, setMCPTests] = useState<MCPToolStatus[]>([])
   const [testing, setTesting] = useState(false)
   const [selectedMCPGroup, setSelectedMCPGroup] = useState<string>('All')
+  // const [syncLoading, setSyncLoading] = useState(false)
 
   const { data: serverStatus, isLoading, error, refetch } = useQuery({
     queryKey: ['server-status'],
@@ -359,7 +360,7 @@ export function SystemStatus() {
 
       {/* Detailed Tests */}
       <Tabs defaultValue="endpoints" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="endpoints" className="flex items-center gap-2">
             <Database className="w-4 h-4" />
             API Endpoints
@@ -367,6 +368,10 @@ export function SystemStatus() {
           <TabsTrigger value="mcp" className="flex items-center gap-2">
             <Zap className="w-4 h-4" />
             MCP Tools
+          </TabsTrigger>
+          <TabsTrigger value="bundle-sync" className="flex items-center gap-2">
+            <Info className="w-4 h-4" />
+            Bundle Sync
           </TabsTrigger>
         </TabsList>
 
@@ -388,7 +393,7 @@ export function SystemStatus() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {API_ENDPOINTS.map((endpoint, index) => {
+                {API_ENDPOINTS.map((endpoint) => {
                   const testResult = endpointTests.find(t => t.path === endpoint.path)
                   return (
                     <div key={endpoint.path} className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-lg">
@@ -506,8 +511,8 @@ export function SystemStatus() {
                                     <CheckCircle className="w-4 h-4 text-green-600" />
                                   ) : (
                                     <div title={testResult.error}>
-                                <AlertTriangle className="w-4 h-4 text-red-600" />
-                              </div>
+                                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                                    </div>
                                   )
                                 ) : (
                                   <div className="w-4 h-4 bg-gray-300 rounded-full" />
@@ -538,8 +543,8 @@ export function SystemStatus() {
                                 <CheckCircle className="w-4 h-4 text-green-600" />
                               ) : (
                                 <div title={testResult.error}>
-                                <AlertTriangle className="w-4 h-4 text-red-600" />
-                              </div>
+                                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                                </div>
                               )
                             ) : (
                               <div className="w-4 h-4 bg-gray-300 rounded-full" />
@@ -554,6 +559,8 @@ export function SystemStatus() {
             </CardContent>
           </Card>
         </TabsContent>
+
+
       </Tabs>
     </div>
   )

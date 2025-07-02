@@ -67,7 +67,7 @@ curl -X POST /api/vector-db/search -d '{"query": "configuration file loading", "
 ├── .cntx/                 # Configuration and cache
 │   ├── activities/        # Agent task definitions
 │   ├── agent-rules/       # Modular instruction system
-│   └── bundles.json       # Bundle configuration
+│   └── bundle-states.json # Bundle configuration and metadata
 └── server.js              # Main HTTP server and API
 ```
 

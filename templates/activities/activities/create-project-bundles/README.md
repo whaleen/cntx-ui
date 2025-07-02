@@ -24,7 +24,7 @@ Set up organized bundles for a new codebase using agent assistance to analyze pr
 1. The system must analyze the existing project structure and file types
 2. The system must suggest logical bundle groupings based on project architecture
 3. The system must create bundle configuration files with clear naming and descriptions
-4. **CRITICAL**: The system must update both .cntx/bundles.json (metadata) AND .cntx/config.json (tracking patterns)
+4. **CRITICAL**: The system must update .cntx/bundle-states.json as the single source of truth for bundle definitions
 5. The system must establish rules for automatic file categorization
 6. The system must generate documentation explaining each bundle's purpose
 7. The system must allow iterative refinement of bundle structure based on user feedback
@@ -77,7 +77,8 @@ Set up organized bundles for a new codebase using agent assistance to analyze pr
 
 ## Related Files
 
-- `.cntx/config.json` - Main cntx-ui configuration
-- `.cntx/bundles.json` - Bundle definitions and rules
+- `.cntx/config.json` - Non-bundle configuration settings (editor, etc.)
+- `.cntx/bundle-states.json` - Single source of truth for all bundle definitions
 - `lib/bundle-manager.js` - Bundle management logic
+- `lib/configuration-manager.js` - Configuration and bundle state management
 - `web/src/components/BundleList.tsx` - Bundle UI components

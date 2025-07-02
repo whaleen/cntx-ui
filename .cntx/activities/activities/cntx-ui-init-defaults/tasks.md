@@ -3,7 +3,7 @@
 - `bin/cntx-ui.js` - The main CLI entry point where the `init` command logic resides.
 - `lib/cntx-server.js` - (Potentially) Where the `CntxServer` class is defined, which manages `.cntx` directory operations.
 - `templates/minimal/.cntx/config.json` - The new default config template.
-- `templates/minimal/.cntx/bundles.json` - The new default bundles template.
+- `templates/minimal/.cntx/bundle-states.json` - The new default bundle states template.
 - `templates/minimal/.cntx/hidden-files.json` - The new default hidden files template.
 - `templates/minimal/.cntx/activities/activities.json` - The new default activities index.
 - `templates/minimal/.cntx/activities/activities/sample-activity-1/README.md` - Sample activity 1 README.

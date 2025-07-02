@@ -8,5 +8,5 @@ server-output.log
 
 # Generated files that shouldn't be in bundles
 .cntx/semantic-cache.json
-.cntx/bundles.json
+.cntx/bundle-states.json
 

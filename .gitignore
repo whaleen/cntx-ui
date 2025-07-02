@@ -90,4 +90,4 @@ temp/
 # cntx-ui specific
 # Note: Keep .cntx/ directory for configuration
 # But ignore generated bundles cache if it gets large
-.cntx/bundles.json
+.cntx/bundle-states.json
