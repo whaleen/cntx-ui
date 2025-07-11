@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/nothingdao-cntx-ui-badge.png)](https://mseep.ai/app/nothingdao-cntx-ui)
+
 # cntx-ui
 
 Minimal file bundling and tagging tool for AI development with web interface.
