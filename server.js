@@ -361,7 +361,7 @@ export class CntxServer {
 
     // 2. Perform fresh analysis if DB is empty
     try {
-      const supportedExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs'];
+      const supportedExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.rs'];
       const files = this.fileSystemManager.getAllFiles()
         .filter(f => supportedExtensions.includes(extname(f).toLowerCase()))
         .map(f => relative(this.CWD, f));
