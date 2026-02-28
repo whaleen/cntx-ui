@@ -55,6 +55,7 @@ export interface ServerOptions {
 export class CntxServer {
   CWD: string;
   CNTX_DIR: string;
+  version: string;
   verbose: boolean;
   isMcp: boolean;
   mcpServerStarted: boolean;
@@ -87,6 +88,20 @@ export class CntxServer {
     this.mcpServerStarted = false;
     this.mcpServer = null;
     this.initMessages = [];
+
+    // Read package version
+    try {
+      let pkgDir = __dirname;
+      let pkgPath = join(pkgDir, 'package.json');
+      if (!existsSync(pkgPath)) {
+        pkgDir = join(__dirname, '..');
+        pkgPath = join(pkgDir, 'package.json');
+      }
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+      this.version = pkg.version;
+    } catch {
+      this.version = '3.1.5';
+    }
 
     // Ensure directory exists
     if (!existsSync(this.CNTX_DIR)) mkdirSync(this.CNTX_DIR, { recursive: true });
@@ -252,7 +267,7 @@ export class CntxServer {
 
   startMCPServer() {
     if (!this.mcpServer) {
-      this.mcpServer = new MCPServer(this);
+      this.mcpServer = new MCPServer(this, this.version);
       this.mcpServerStarted = true;
     }
   }

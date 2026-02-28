@@ -18,9 +18,11 @@ export interface McpRequest {
 
 export class MCPServer {
   cntxServer: CntxServer;
+  version: string;
 
-  constructor(cntxServer: CntxServer) {
+  constructor(cntxServer: CntxServer, version: string = '3.0.0') {
     this.cntxServer = cntxServer;
+    this.version = version;
     
     // Listen for MCP requests on stdin
     process.stdin.on('data', (data) => {
@@ -52,7 +54,7 @@ export class MCPServer {
             resources: {},
             prompts: {}
           },
-          serverInfo: { name: 'cntx-ui', version: '3.0.0' }
+          serverInfo: { name: 'cntx-ui', version: this.version }
         }));
 
       case 'tools/list':
