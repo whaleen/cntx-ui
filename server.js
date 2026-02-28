@@ -761,12 +761,32 @@ export async function initConfig(cwd = process.cwd()) {
   writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), 'utf8');
   console.log('📄 Created .mcp.json for agent auto-discovery');
 
-  // 3. Initialize basic configuration with better defaults
+  // 3. Initialize basic configuration with better defaults and auto-suggestions
   server.configManager.loadConfig();
-  server.configManager.saveConfig({
-    bundles: {
-      master: ['**/*']
+  
+  const suggestedBundles = {
+    master: ['**/*']
+  };
+
+  // Directory-based auto-suggestions
+  const commonDirs = [
+    { dir: 'src/components', name: 'ui-components' },
+    { dir: 'src/services', name: 'services' },
+    { dir: 'src/lib', name: 'libraries' },
+    { dir: 'src/hooks', name: 'react-hooks' },
+    { dir: 'server', name: 'backend-api' },
+    { dir: 'tests', name: 'test-suite' }
+  ];
+
+  commonDirs.forEach(d => {
+    if (existsSync(join(cwd, d.dir))) {
+      suggestedBundles[d.name] = [`${d.dir}/**`];
+      console.log(`💡 Suggested bundle: ${d.name} (${d.dir}/**)`);
     }
+  });
+
+  server.configManager.saveConfig({
+    bundles: suggestedBundles
   });
 
   // 4. Create robust default .cntxignore

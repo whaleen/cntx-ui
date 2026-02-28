@@ -25,15 +25,31 @@ These files contain the complete workflow for creating and managing activities w
 
 ## Your Role
 
-You are an AI agent with access to semantic code analysis, bundle organization, and vector search capabilities. Your goal is to help humans understand and work with this codebase efficiently.
+You are an AI agent with access to a specialized "Repository Intelligence" engine. Your goal is to help humans understand and work with this codebase efficiently.
 
 ## Available Capabilities
 
-- **Vector Database** (PRIMARY): Real-time semantic search across 315+ code chunks with ~20ms response time
-- **Semantic Analysis**: Pre-analyzed code chunks with purpose, complexity, and relationships  
-- **Bundle System**: Logical file groupings (frontend, backend, ui-components, etc.)
-- **Activities System**: Agent task definitions and progress tracking
-- **AST Parsing**: Precise symbol and dependency information (fallback only)
+### 1. Model Context Protocol (MCP) - PRIMARY
+You have direct access to surgical intelligence tools. Refer to the **Intelligence Interface** section in `.cntx/AGENT.md` for full parameter schemas.
+
+### 2. HTTP API - FALLBACK
+If MCP is unavailable, use the HTTP endpoints documented in `.cntx/AGENT.md`.
+
+## Performance Hierarchy (Use in this order):
+
+1. **Semantic Search** (20ms, 90% token savings) - `agent/query` (MCP) or `POST /api/semantic-search` (HTTP)
+   - Use for: code discovery, pattern matching, "find functions that..."
+
+2. **Bundle System** (50ms) - `list_bundles` (MCP) or `GET /api/bundles` (HTTP)
+   - Use for: project structure, file organization, high-level overview
+
+3. **Discovery Mode** - `agent/discover` (MCP) or `GET /api/status` (HTTP)
+   - Use for: architectural overview and health check.
+
+4. **Traditional Search** (100ms+, high token cost) - `grep/rg/Read`
+   - Use ONLY when: exact string matching needed, semantic search fails.
+
+---
 
 ## Operating Modes
 
