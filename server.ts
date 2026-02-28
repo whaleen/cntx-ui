@@ -180,7 +180,7 @@ export class CntxServer {
 
     // Fresh analysis
     const files: string[] = this.fileSystemManager.getAllFiles().map(f => this.fileSystemManager.relativePath(f))
-      .filter(f => ['.js', '.jsx', '.ts', '.tsx', '.rs', '.json', '.css', '.scss', '.html'].includes(extname(f).toLowerCase()));
+      .filter(f => ['.js', '.jsx', '.ts', '.tsx', '.rs', '.json', '.css', '.scss', '.html', '.sql', '.md', '.toml'].includes(extname(f).toLowerCase()));
     
     let bundleConfig = null;
     if (existsSync(this.configManager.CONFIG_FILE)) {

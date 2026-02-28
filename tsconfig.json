@@ -15,7 +15,8 @@
   "include": [
     "server.ts",
     "lib/**/*.ts",
-    "bin/**/*.ts"
+    "bin/**/*.ts",
+    "types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",

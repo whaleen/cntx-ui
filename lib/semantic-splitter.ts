@@ -13,6 +13,10 @@ import Rust from 'tree-sitter-rust'
 import Json from 'tree-sitter-json'
 import Css from 'tree-sitter-css'
 import Html from 'tree-sitter-html'
+import Sql from 'tree-sitter-sql'
+import Markdown from 'tree-sitter-markdown'
+import Toml from 'tree-sitter-toml'
+import LegacyParser from 'tree-sitter-legacy'
 import HeuristicsManager from './heuristics-manager.js'
 import { SemanticChunk } from './database-manager.js'
 
@@ -64,7 +68,10 @@ export default class SemanticSplitter {
       rust: new Parser(),
       json: new Parser(),
       css: new Parser(),
-      html: new Parser()
+      html: new Parser(),
+      sql: new (LegacyParser as any)(),
+      markdown: new (LegacyParser as any)(),
+      toml: new (LegacyParser as any)()
     }
     this.parsers.javascript.setLanguage(JavaScript)
     this.parsers.typescript.setLanguage(TypeScript.typescript)
@@ -73,6 +80,9 @@ export default class SemanticSplitter {
     this.parsers.json.setLanguage(Json)
     this.parsers.css.setLanguage(Css)
     this.parsers.html.setLanguage(Html)
+    this.parsers.sql.setLanguage(Sql)
+    this.parsers.markdown.setLanguage(Markdown)
+    this.parsers.toml.setLanguage(Toml)
 
     this.heuristicsManager = new HeuristicsManager()
   }
@@ -84,6 +94,9 @@ export default class SemanticSplitter {
       case '.css': return this.parsers.css
       case '.scss': return this.parsers.css
       case '.html': return this.parsers.html
+      case '.sql': return this.parsers.sql
+      case '.md': return this.parsers.markdown
+      case '.toml': return this.parsers.toml
       case '.jsx': return this.parsers.javascript
       case '.ts': return this.parsers.typescript
       case '.tsx': return this.parsers.tsx
@@ -151,6 +164,12 @@ export default class SemanticSplitter {
       this.extractCssStructures(root, content, relativePath, elements)
     } else if (ext === '.html') {
       this.extractHtmlStructures(root, content, relativePath, elements)
+    } else if (ext === '.sql') {
+      this.extractSqlStructures(root, content, relativePath, elements)
+    } else if (ext === '.md') {
+      this.extractMarkdownStructures(root, content, relativePath, elements)
+    } else if (ext === '.toml') {
+      this.extractTomlStructures(root, content, relativePath, elements)
     }
 
     // Create chunks from elements
@@ -333,6 +352,95 @@ export default class SemanticSplitter {
       return content.slice(tagNameNode.startIndex, tagNameNode.endIndex)
     }
     return node.type
+  }
+
+  extractSqlStructures(root: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {
+    for (let i = 0; i < root.namedChildCount; i++) {
+      const node = root.namedChild(i)
+      if (!node) continue
+      const name = this.getSqlStatementName(node, content)
+      const structure = this.mapStructureNode(name, node, content, filePath)
+      if (structure.code.length >= this.options.minStructureSize) {
+        elements.functions.push(structure)
+      }
+    }
+  }
+
+  getSqlStatementName(node: Parser.SyntaxNode, content: string) {
+    const code = content.slice(node.startIndex, node.endIndex).trim()
+    if (!code) return node.type
+    const firstLine = code.split('\n')[0]
+    const match = firstLine.match(/^\s*([A-Za-z_]+)/)
+    if (match) return match[1].toUpperCase()
+    return node.type
+  }
+
+  extractMarkdownStructures(root: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {
+    for (let i = 0; i < root.namedChildCount; i++) {
+      const node = root.namedChild(i)
+      if (!node) continue
+      if (this.isMarkdownStructureNode(node.type)) {
+        const name = this.getMarkdownNodeName(node, content)
+        const structure = this.mapStructureNode(name, node, content, filePath)
+        if (structure.code.length >= this.options.minStructureSize) {
+          elements.functions.push(structure)
+        }
+      }
+    }
+  }
+
+  isMarkdownStructureNode(type: string) {
+    return [
+      'atx_heading',
+      'setext_heading',
+      'fenced_code_block',
+      'indented_code_block',
+      'tight_list',
+      'loose_list',
+      'list',
+      'block_quote',
+      'thematic_break'
+    ].includes(type)
+  }
+
+  getMarkdownNodeName(node: Parser.SyntaxNode, content: string) {
+    const text = content.slice(node.startIndex, node.endIndex).trim()
+    if (node.type === 'atx_heading') {
+      const withoutHashes = text.replace(/^#{1,6}\s*/, '').replace(/\s*#+\s*$/, '').trim()
+      return withoutHashes || 'heading'
+    }
+    if (node.type === 'setext_heading') {
+      const firstLine = text.split('\n')[0]?.trim()
+      return firstLine || 'heading'
+    }
+    if (node.type === 'fenced_code_block' || node.type === 'indented_code_block') {
+      return 'code_block'
+    }
+    if (node.type.includes('list')) {
+      return 'list'
+    }
+    if (node.type === 'block_quote') {
+      return 'blockquote'
+    }
+    if (node.type === 'thematic_break') {
+      return 'break'
+    }
+    return node.type
+  }
+
+  extractTomlStructures(root: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {
+    for (let i = 0; i < root.namedChildCount; i++) {
+      const node = root.namedChild(i)
+      if (!node) continue
+      if (node.type === 'table' || node.type === 'table_array_element' || node.type === 'pair') {
+        const keyNode = node.childForFieldName('name') || node.childForFieldName('key') || node.namedChild(0)
+        const name = keyNode ? content.slice(keyNode.startIndex, keyNode.endIndex) : node.type
+        const structure = this.mapStructureNode(name, node, content, filePath)
+        if (structure.code.length >= this.options.minStructureSize) {
+          elements.functions.push(structure)
+        }
+      }
+    }
   }
 
   mapTypeNode(node: Parser.SyntaxNode, content: string, filePath: string): TypeNode | null {
