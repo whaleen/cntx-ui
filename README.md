@@ -40,12 +40,21 @@ Agents interact through MCP tools or the HTTP API:
 | `agent/query` | Semantic search — "where is auth handled?" |
 | `agent/investigate` | Find integration points for a new feature |
 | `agent/organize` | Audit and optimize bundle structure |
+| `artifacts/list` | List normalized project artifacts (OpenAPI + Navigation) |
+| `artifacts/get_openapi` | Return OpenAPI artifact summary and payload |
+| `artifacts/get_navigation` | Return Navigation artifact summary and payload |
+| `artifacts/summarize` | Compact cross-artifact summary for agents |
 | `list_bundles` | List all bundles with metadata |
 | `get_bundle` | Get full bundle content as XML |
 | `get_semantic_chunks` | Get all analyzed code chunks |
 | `read_file` / `write_file` | File operations with bundle context |
 
 Full tool reference with parameters is generated in `.cntx/AGENT.md` and `.cntx/TOOLS.md`.
+
+Artifact HTTP endpoints:
+- `GET /api/artifacts`
+- `GET /api/artifacts/openapi`
+- `GET /api/artifacts/navigation`
 
 ## How it works
 

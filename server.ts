@@ -16,6 +16,7 @@ import FileSystemManager from './lib/file-system-manager.js';
 import BundleManager from './lib/bundle-manager.js';
 import APIRouter from './lib/api-router.js';
 import WebSocketManager from './lib/websocket-manager.js';
+import ArtifactManager from './lib/artifact-manager.js';
 
 // Import existing lib modules
 import SemanticSplitter from './lib/semantic-splitter.js';
@@ -64,6 +65,7 @@ export class CntxServer {
   bundleManager: BundleManager;
   webSocketManager: WebSocketManager;
   apiRouter: APIRouter;
+  artifactManager: ArtifactManager;
   
   semanticSplitter: SemanticSplitter;
   vectorStore: SimpleVectorStore;
@@ -92,6 +94,7 @@ export class CntxServer {
     this.fileSystemManager = new FileSystemManager(cwd, { verbose: this.verbose });
     this.bundleManager = new BundleManager(this.configManager, this.fileSystemManager, this.verbose);
     this.webSocketManager = new WebSocketManager(this.bundleManager, this.configManager, { verbose: this.verbose });
+    this.artifactManager = new ArtifactManager(cwd);
 
     // AI Components
     this.semanticSplitter = new SemanticSplitter({
@@ -154,6 +157,7 @@ export class CntxServer {
 
     // Load reasoning/manifest
     await this.agentRuntime.generateAgentManifest();
+    this.artifactManager.refresh();
   }
 
   startWatching() {

@@ -106,6 +106,16 @@ export default class APIRouter {
             if (pathname === '/api/mcp-status' && method === 'GET') {
                 return await this.handleGetMcpStatus(req, res);
             }
+            // === Artifact Endpoints ===
+            if (pathname === '/api/artifacts' && method === 'GET') {
+                return await this.handleGetArtifacts(req, res);
+            }
+            if (pathname === '/api/artifacts/openapi' && method === 'GET') {
+                return await this.handleGetArtifact(req, res, 'openapi');
+            }
+            if (pathname === '/api/artifacts/navigation' && method === 'GET') {
+                return await this.handleGetArtifact(req, res, 'navigation');
+            }
             // === Rule Management ===
             if (pathname === '/api/cursor-rules' && method === 'GET') {
                 return await this.handleGetCursorRules(req, res);
@@ -349,6 +359,15 @@ export default class APIRouter {
             available: true,
             message: isRunning ? 'MCP server is running' : 'MCP server integration available'
         });
+    }
+    async handleGetArtifacts(req, res) {
+        const artifacts = this.cntxServer.artifactManager.refresh();
+        this.sendResponse(res, 200, { artifacts });
+    }
+    async handleGetArtifact(req, res, type) {
+        this.cntxServer.artifactManager.refresh();
+        const payload = this.cntxServer.artifactManager.getPayload(type);
+        this.sendResponse(res, 200, payload);
     }
     async handleGetCursorRules(req, res) {
         const filePath = join(this.configManager.CWD, '.cursorrules');

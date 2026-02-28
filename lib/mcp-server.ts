@@ -121,6 +121,28 @@ export class MCPServer {
 
       // Legacy tools mapping
       switch (name) {
+        case 'artifacts/list': {
+          const artifacts = this.cntxServer.artifactManager.refresh();
+          return this.createSuccessResponse(id, { content: [{ type: 'text', text: JSON.stringify({ artifacts }, null, 2) }] });
+        }
+        case 'artifacts/get_openapi': {
+          this.cntxServer.artifactManager.refresh();
+          const payload = this.cntxServer.artifactManager.getPayload('openapi');
+          return this.createSuccessResponse(id, { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+        }
+        case 'artifacts/get_navigation': {
+          this.cntxServer.artifactManager.refresh();
+          const payload = this.cntxServer.artifactManager.getPayload('navigation');
+          return this.createSuccessResponse(id, { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+        }
+        case 'artifacts/summarize': {
+          const artifacts = this.cntxServer.artifactManager.refresh();
+          const summary = {
+            openapi: artifacts.find((a) => a.type === 'openapi')?.summary ?? {},
+            navigation: artifacts.find((a) => a.type === 'navigation')?.summary ?? {}
+          };
+          return this.createSuccessResponse(id, { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] });
+        }
         case 'list_bundles':
           const bundles = this.cntxServer.bundleManager.getAllBundleInfo();
           return this.createSuccessResponse(id, { content: [{ type: 'text', text: JSON.stringify(bundles, null, 2) }] });
@@ -175,6 +197,26 @@ export class MCPServer {
         name: 'agent/investigate',
         description: 'Investigation Mode: Suggest integration points.',
         inputSchema: { type: 'object', properties: { feature: { type: 'string' } }, required: ['feature'] }
+      },
+      {
+        name: 'artifacts/list',
+        description: 'List normalized project artifacts (OpenAPI and Navigation manifests).',
+        inputSchema: { type: 'object', properties: {} }
+      },
+      {
+        name: 'artifacts/get_openapi',
+        description: 'Get OpenAPI artifact payload (summary + parsed content when JSON).',
+        inputSchema: { type: 'object', properties: {} }
+      },
+      {
+        name: 'artifacts/get_navigation',
+        description: 'Get Navigation artifact payload (summary + parsed manifest).',
+        inputSchema: { type: 'object', properties: {} }
+      },
+      {
+        name: 'artifacts/summarize',
+        description: 'Get compact summaries for OpenAPI and Navigation artifacts.',
+        inputSchema: { type: 'object', properties: {} }
       },
       {
         name: 'list_bundles',
