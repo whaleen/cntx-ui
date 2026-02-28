@@ -206,8 +206,14 @@ export default class BundleManager {
     try {
       const fullPath = this.fileSystemManager.fullPath(relativePath);
       const content = readFileSync(fullPath, 'utf8');
+
+      // Skip files over 100KB in bundle XML to prevent string length crashes
+      if (content.length > 100_000) {
+        return `  <file path="${this.escapeXml(relativePath)}" skipped="too-large" size="${content.length}" />\n`;
+      }
+
       const chunks = this.db.getChunksByFile(relativePath);
-      
+
       let xml = `  <file path="${this.escapeXml(relativePath)}">\n`;
       if (chunks.length > 0) {
         xml += `    <semantic_context>\n`;

@@ -152,14 +152,30 @@ export class CntxServer {
     async enhanceSemanticChunksIfNeeded(analysis) {
         if (!analysis || !analysis.chunks)
             return;
-        if (!this.vectorStoreInitialized) {
-            await this.vectorStore.init();
-            this.vectorStoreInitialized = true;
-        }
-        for (const chunk of analysis.chunks) {
-            if (!this.databaseManager.getEmbedding(chunk.id)) {
-                await this.vectorStore.upsertChunk(chunk);
+        try {
+            if (!this.vectorStoreInitialized) {
+                await this.vectorStore.init();
+                this.vectorStoreInitialized = true;
             }
+            let embedded = 0;
+            let skipped = 0;
+            for (const chunk of analysis.chunks) {
+                if (!this.databaseManager.getEmbedding(chunk.id)) {
+                    try {
+                        await this.vectorStore.upsertChunk(chunk);
+                        embedded++;
+                    }
+                    catch (e) {
+                        skipped++;
+                    }
+                }
+            }
+            if (skipped > 0) {
+                console.warn(`⚠️ Embedded ${embedded} chunks, skipped ${skipped} (too large or invalid)`);
+            }
+        }
+        catch (e) {
+            console.error(`⚠️ Vector embedding failed: ${e.message}. Semantic search will be unavailable.`);
         }
     }
     async refreshSemanticAnalysis() {

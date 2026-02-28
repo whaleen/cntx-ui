@@ -141,8 +141,15 @@ export default class SemanticSplitter {
   processFile(relativePath: string, projectPath: string): SemanticChunk[] {
     const fullPath = join(projectPath, relativePath)
     if (!existsSync(fullPath)) return []
-    
+
     const content = readFileSync(fullPath, 'utf8')
+
+    // Skip files larger than 200KB — tree-sitter and embeddings can't handle them well
+    if (content.length > 200_000) {
+      console.warn(`Skipping ${relativePath}: file too large (${Math.round(content.length / 1024)}KB)`)
+      return []
+    }
+
     const parser = this.getParser(relativePath)
     const tree = parser.parse(content)
     const root = tree.rootNode
@@ -433,7 +440,10 @@ export default class SemanticSplitter {
       const node = root.namedChild(i)
       if (!node) continue
       if (node.type === 'table' || node.type === 'table_array_element' || node.type === 'pair') {
-        const keyNode = node.childForFieldName('name') || node.childForFieldName('key') || node.namedChild(0)
+        // Legacy parser uses namedChild instead of childForFieldName
+        const keyNode = (node as any).childForFieldName?.('name')
+          || (node as any).childForFieldName?.('key')
+          || node.namedChild(0)
         const name = keyNode ? content.slice(keyNode.startIndex, keyNode.endIndex) : node.type
         const structure = this.mapStructureNode(name, node, content, filePath)
         if (structure.code.length >= this.options.minStructureSize) {

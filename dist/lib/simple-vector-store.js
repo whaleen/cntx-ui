@@ -37,8 +37,9 @@ export default class SimpleVectorStore {
         const existing = this.db.getEmbedding(chunkId);
         if (existing)
             return existing;
-        // Generate new embedding
-        const textToEmbed = `${chunk.name} ${chunk.purpose} ${chunk.code}`;
+        // Generate new embedding — truncate to 8KB to stay within model limits
+        const rawText = `${chunk.name} ${chunk.purpose} ${chunk.code}`;
+        const textToEmbed = rawText.length > 8192 ? rawText.slice(0, 8192) : rawText;
         const embedding = await this.generateEmbedding(textToEmbed);
         // Save to SQLite
         this.db.saveEmbedding(chunkId, embedding, this.modelName);
