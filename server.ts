@@ -6,7 +6,8 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { join, dirname, relative, extname } from 'path';
 import { fileURLToPath, parse } from 'url';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, cpSync } from 'fs';
+import { homedir } from 'os';
 
 // Import our modular components
 import ConfigurationManager from './lib/configuration-manager.js';
@@ -280,8 +281,231 @@ export async function startServer(options: ServerOptions = {}) {
   return await server.listen(options.port, options.host);
 }
 
+// Initialize project configuration
 export async function initConfig(cwd = process.cwd()) {
   const server = new CntxServer(cwd);
-  // Implementation matches previous init logic
-  return [];
+  
+  // 1. Initialize directory structure
+  if (!existsSync(server.CNTX_DIR)) {
+    mkdirSync(server.CNTX_DIR, { recursive: true });
+    console.log('📁 Created .cntx directory');
+  }
+
+  // 2. Create .mcp.json for Claude Code discovery
+  const mcpConfigPath = join(cwd, '.mcp.json');
+  const mcpConfig = {
+    mcpServers: {
+      "cntx-ui": {
+        command: "cntx-ui",
+        args: ["mcp"],
+        cwd: "."
+      }
+    }
+  };
+  writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), 'utf8');
+  console.log('📄 Created .mcp.json for agent auto-discovery');
+
+  // 3. Initialize basic configuration with better defaults and auto-suggestions
+  server.configManager.loadConfig();
+  
+  const suggestedBundles: any = {
+    master: ['**/*']
+  };
+
+  // Directory-based auto-suggestions
+  const commonDirs = [
+    { dir: 'src/components', name: 'ui-components' },
+    { dir: 'src/services', name: 'services' },
+    { dir: 'src/lib', name: 'libraries' },
+    { dir: 'src/hooks', name: 'react-hooks' },
+    { dir: 'server', name: 'backend-api' },
+    { dir: 'tests', name: 'test-suite' }
+  ];
+
+  commonDirs.forEach(d => {
+    if (existsSync(join(cwd, d.dir))) {
+      suggestedBundles[d.name] = [`${d.dir}/**`];
+      console.log(`💡 Suggested bundle: ${d.name} (${d.dir}/**)`);
+    }
+  });
+
+  server.configManager.saveConfig({
+    bundles: suggestedBundles
+  });
+
+  // 4. Create robust default .cntxignore
+  const ignorePath = join(cwd, '.cntxignore');
+  if (!existsSync(ignorePath)) {
+    const defaultIgnore = `# Binary files
+*.db
+*.db-journal
+*.png
+*.jpg
+*.jpeg
+*.ico
+*.icns
+*.gif
+*.zip
+*.tar.gz
+
+# Generated files
+**/gen/**
+**/dist/**
+**/build/**
+**/node_modules/**
+**/.next/**
+**/.cache/**
+
+# cntx-ui internals
+.cntx/**
+.mcp.json
+`;
+    writeFileSync(ignorePath, defaultIgnore, 'utf8');
+    console.log('📄 Created .cntxignore with smart defaults');
+  }
+
+  console.log('⚙️ Basic configuration initialized');
+
+  const templateDir = join(__dirname, 'templates');
+
+  // Copy agent configuration files
+  const agentFiles = [
+    'agent-config.yaml',
+    'agent-instructions.md'
+  ];
+
+  for (const file of agentFiles) {
+    const sourcePath = join(templateDir, file);
+    const destPath = join(server.CNTX_DIR, file);
+    
+    if (existsSync(sourcePath) && !existsSync(destPath)) {
+      copyFileSync(sourcePath, destPath);
+      console.log(`📄 Created ${file}`);
+    }
+  }
+
+  // Copy agent-rules directory structure
+  const agentRulesSource = join(templateDir, 'agent-rules');
+  const agentRulesDest = join(server.CNTX_DIR, 'agent-rules');
+  
+  if (existsSync(agentRulesSource) && !existsSync(agentRulesDest)) {
+    cpSync(agentRulesSource, agentRulesDest, { recursive: true });
+    console.log('📁 Created agent-rules directory with templates');
+  }
+
+  // Copy activities framework
+  const activitiesDir = join(server.CNTX_DIR, 'activities');
+  if (!existsSync(activitiesDir)) {
+    mkdirSync(activitiesDir, { recursive: true });
+  }
+
+  // Copy activities README
+  const activitiesReadmeSource = join(templateDir, 'activities', 'README.md');
+  const activitiesReadmeDest = join(activitiesDir, 'README.md');
+  
+  if (existsSync(activitiesReadmeSource) && !existsSync(activitiesReadmeDest)) {
+    copyFileSync(activitiesReadmeSource, activitiesReadmeDest);
+    console.log('📄 Created activities/README.md');
+  }
+
+  // Copy activities lib directory (MDC templates)
+  const activitiesLibSource = join(templateDir, 'activities', 'lib');
+  const activitiesLibDest = join(activitiesDir, 'lib');
+  
+  if (existsSync(activitiesLibSource) && !existsSync(activitiesLibDest)) {
+    cpSync(activitiesLibSource, activitiesLibDest, { recursive: true });
+    console.log('📁 Created activities/lib with MDC templates');
+  }
+
+  // Copy activities.json from templates
+  const activitiesJsonPath = join(activitiesDir, 'activities.json');
+  const templateActivitiesJsonPath = join(templateDir, 'activities', 'activities.json');
+  if (!existsSync(activitiesJsonPath) && existsSync(templateActivitiesJsonPath)) {
+    copyFileSync(templateActivitiesJsonPath, activitiesJsonPath);
+    console.log('📄 Created activities.json with bundle example activity');
+  }
+
+  // Copy example activity from templates
+  const activitiesDestDir = join(activitiesDir, 'activities');
+  const templateActivitiesDir = join(templateDir, 'activities', 'activities');
+  if (!existsSync(activitiesDestDir) && existsSync(templateActivitiesDir)) {
+    cpSync(templateActivitiesDir, activitiesDestDir, { recursive: true });
+    console.log('📁 Created example activity with templates');
+  }
+
+  return server.initMessages;
+}
+
+export async function generateBundle(name: string) {
+  const server = new CntxServer(process.cwd());
+  await server.init({ skipFileWatcher: true });
+  return await server.bundleManager.regenerateBundle(name);
+}
+
+export async function getStatus() {
+  const server = new CntxServer(process.cwd());
+  await server.init({ skipFileWatcher: true });
+
+  const bundles = server.bundleManager.getAllBundleInfo();
+  const totalFiles = server.fileSystemManager.getAllFiles().length;
+
+  console.log('📊 cntx-ui Status');
+  console.log('================');
+  console.log(`Total files: ${totalFiles}`);
+  console.log(`Bundles: ${bundles.length}`);
+
+  bundles.forEach(bundle => {
+    console.log(`  • ${bundle.name}: ${bundle.fileCount} files (${Math.round(bundle.size / 1024)}KB)`);
+  });
+
+  return {
+    totalFiles,
+    bundles: bundles.length,
+    bundleDetails: bundles
+  };
+}
+
+export function setupMCP() {
+  const configPath = join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+  const projectPath = process.cwd();
+
+  console.log('🔧 Setting up MCP integration...');
+  console.log(`Project: ${projectPath}`);
+  console.log(`Claude config: ${configPath}`);
+
+  try {
+    let config: any = {};
+    if (existsSync(configPath)) {
+      config = JSON.parse(readFileSync(configPath, 'utf8'));
+    }
+
+    if (!config.mcpServers) {
+      config.mcpServers = {};
+    }
+
+    config.mcpServers['cntx-ui'] = {
+      command: 'npx',
+      args: ['cntx-ui', 'mcp'],
+      cwd: projectPath
+    };
+
+    // Ensure directory exists
+    mkdirSync(dirname(configPath), { recursive: true });
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    console.log('✅ MCP integration configured');
+    console.log('💡 Restart Claude Desktop to apply changes');
+  } catch (error: any) {
+    console.error('❌ Failed to setup MCP:', error.message);
+    console.log('💡 You may need to manually add the configuration to Claude Desktop');
+  }
+}
+
+// Auto-start server when run directly
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+  console.log('🚀 Starting cntx-ui server...');
+  const server = new CntxServer();
+  server.init();
+  server.listen(3333, 'localhost');
 }

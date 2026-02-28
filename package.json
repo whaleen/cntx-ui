@@ -1,7 +1,7 @@
 {
   "name": "cntx-ui",
   "type": "module",
-  "version": "3.0.9",
+  "version": "3.1.0",
   "description": "Autonomous Repository Intelligence engine with web UI and MCP server. Unified semantic code understanding, local RAG, and agent working memory.",
   "keywords": [
     "repository-intelligence",
@@ -42,7 +42,7 @@
     "check:version-sync": "node scripts/check-version-sync.mjs",
     "release:ci": "node scripts/release-from-package.mjs",
     "prepublishOnly": "npm run build",
-    "test:local": "npm pack && npm install -g ./cntx-ui-3.0.8.tgz"
+    "test:local": "npm pack && npm install -g ./cntx-ui-3.1.0.tgz"
   },
   "dependencies": {
     "@xenova/transformers": "^2.17.2",

@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "cntx-ui": {
-      "command": "cntx-ui",
-      "args": ["mcp"],
-      "cwd": "{{projectDir}}"
-    }
-  }
-}
