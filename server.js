@@ -737,17 +737,31 @@ export async function generateBundle(bundleName = 'master') {
   return bundleInfo;
 }
 
-export async function initConfig() {
-  const server = new CntxServer(process.cwd(), { verbose: false });
-  const templateDir = join(__dirname, 'templates');
-
-  // Initialize directory structure
+// Initialize project configuration
+export async function initConfig(cwd = process.cwd()) {
+  const server = new CntxServer(cwd);
+  
+  // 1. Initialize directory structure
   if (!existsSync(server.CNTX_DIR)) {
     mkdirSync(server.CNTX_DIR, { recursive: true });
     console.log('📁 Created .cntx directory');
   }
 
-  // Initialize basic configuration
+  // 2. Create .mcp.json for Claude Code discovery
+  const mcpConfigPath = join(cwd, '.mcp.json');
+  const mcpConfig = {
+    mcpServers: {
+      "cntx-ui": {
+        command: "cntx-ui",
+        args: ["mcp"],
+        cwd: "."
+      }
+    }
+  };
+  writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), 'utf8');
+  console.log('📄 Created .mcp.json for agent auto-discovery');
+
+  // 3. Initialize basic configuration with better defaults
   server.configManager.loadConfig();
   server.configManager.saveConfig({
     bundles: {
@@ -755,7 +769,41 @@ export async function initConfig() {
     }
   });
 
+  // 4. Create robust default .cntxignore
+  const ignorePath = join(cwd, '.cntxignore');
+  if (!existsSync(ignorePath)) {
+    const defaultIgnore = `# Binary files
+*.db
+*.db-journal
+*.png
+*.jpg
+*.jpeg
+*.ico
+*.icns
+*.gif
+*.zip
+*.tar.gz
+
+# Generated files
+**/gen/**
+**/dist/**
+**/build/**
+**/node_modules/**
+**/.next/**
+**/.cache/**
+
+# cntx-ui internals
+.cntx/**
+.mcp.json
+`;
+    writeFileSync(ignorePath, defaultIgnore, 'utf8');
+    console.log('📄 Created .cntxignore with smart defaults');
+  }
+
   console.log('⚙️ Basic configuration initialized');
+
+  // ... (rest of the file remains same)
+  const templateDir = join(__dirname, 'templates');
 
   // Copy agent configuration files
   const agentFiles = [
