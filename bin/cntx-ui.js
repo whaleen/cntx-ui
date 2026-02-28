@@ -103,7 +103,8 @@ async function main() {
       case 'watch':
       case 'w':
         const port = parseInt(args[1]) || 3333;
-        const withMcp = args.includes('--with-mcp');
+        // Enable MCP status tracking by default for the web dashboard
+        const withMcp = !args.includes('--no-mcp');
         await startServer({ port, withMcp, verbose: isVerbose });
         break;
 

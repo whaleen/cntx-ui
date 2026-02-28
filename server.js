@@ -234,6 +234,11 @@ export class CntxServer {
       this.startWatching();
       await progress.next(steps[3], 600);
 
+      // Trigger initial semantic analysis in background if no cache
+      if (!this.semanticCache) {
+        this.getSemanticAnalysis().catch(err => console.error('Initial semantic analysis failed:', err.message));
+      }
+
       // Step 5: Generating bundles
       if (!skipBundleGeneration) {
         this.bundleManager.generateAllBundles();
