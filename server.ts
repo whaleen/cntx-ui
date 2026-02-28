@@ -4,7 +4,7 @@
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { join, dirname, relative, extname } from 'path';
+import { join, dirname, relative, extname, basename } from 'path';
 import { fileURLToPath, parse } from 'url';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, cpSync } from 'fs';
 import { homedir } from 'os';
@@ -24,6 +24,21 @@ import { MCPServer } from './lib/mcp-server.js';
 import AgentRuntime from './lib/agent-runtime.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function getProjectName(cwd: string) {
+  const packageJsonPath = join(cwd, 'package.json');
+  if (existsSync(packageJsonPath)) {
+    try {
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+      if (typeof packageJson?.name === 'string' && packageJson.name.trim()) {
+        return packageJson.name.trim();
+      }
+    } catch {
+      // Fall through to directory name
+    }
+  }
+  return basename(cwd);
+}
 
 export interface ServerOptions {
   verbose?: boolean;
@@ -372,6 +387,8 @@ export async function initConfig(cwd = process.cwd()) {
     templateDir = join(__dirname, '..', 'templates');
   }
 
+  const projectName = getProjectName(cwd);
+
   // Copy agent configuration files
   const agentFiles = [
     'agent-config.yaml',
@@ -383,7 +400,16 @@ export async function initConfig(cwd = process.cwd()) {
     const destPath = join(server.CNTX_DIR, file);
     
     if (existsSync(sourcePath) && !existsSync(destPath)) {
-      copyFileSync(sourcePath, destPath);
+      if (file === 'agent-config.yaml') {
+        const template = readFileSync(sourcePath, 'utf8');
+        const updated = template.replace(
+          /^project:\s*["'].*?["']\s*$/m,
+          `project: "${projectName}"`
+        );
+        writeFileSync(destPath, updated, 'utf8');
+      } else {
+        copyFileSync(sourcePath, destPath);
+      }
       console.log(`📄 Created ${file}`);
     }
   }
