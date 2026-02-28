@@ -340,16 +340,19 @@ export class CntxServer {
   // === Semantic Analysis (Legacy methods for compatibility) ===
 
   async getSemanticAnalysis() {
+    // Return cached result if available
+    if (this.semanticCache) {
+      return this.semanticCache;
+    }
+
     // 1. Try to load from SQLite first
     try {
       const dbChunks = this.databaseManager.db.prepare('SELECT * FROM semantic_chunks').all();
       if (dbChunks.length > 0) {
-        if (!this.semanticCache) {
-          this.semanticCache = {
-            chunks: dbChunks.map(row => this.databaseManager.mapChunkRow(row)),
-            summary: { totalChunks: dbChunks.length }
-          };
-        }
+        this.semanticCache = {
+          chunks: dbChunks.map(row => this.databaseManager.mapChunkRow(row)),
+          summary: { totalChunks: dbChunks.length }
+        };
         return this.semanticCache;
       }
     } catch (e) {
