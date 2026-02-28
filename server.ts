@@ -265,7 +265,11 @@ export class CntxServer {
   }
 
   handleStaticFile(req: IncomingMessage, res: ServerResponse, url: any) {
-    const webDir = join(__dirname, 'web/dist');
+    let webDir = join(__dirname, 'web', 'dist');
+    if (!existsSync(webDir)) {
+      // Fallback for dist/ context — web/dist is at package root
+      webDir = join(__dirname, '..', 'web', 'dist');
+    }
     let filePath = join(webDir, url.pathname === '/' ? 'index.html' : url.pathname);
 
     if (!existsSync(filePath)) {
