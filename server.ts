@@ -258,6 +258,11 @@ export class CntxServer {
   }
 
   async listen(port = 3333, host = 'localhost') {
+    if (this.isMcp) {
+      this.log('Mode: MCP (stdio) - Skipping HTTP server start');
+      return null;
+    }
+
     const server = createServer((req, res) => {
       const url = parse(req.url || '/', true);
       
