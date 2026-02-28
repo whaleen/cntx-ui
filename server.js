@@ -4,7 +4,7 @@
  */
 
 import { createServer } from 'http';
-import { join, dirname } from 'path';
+import { join, dirname, relative, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, cpSync } from 'fs';
 import * as fs from 'fs';
@@ -435,7 +435,10 @@ export class CntxServer {
 
     // 2. Perform fresh analysis if DB is empty
     try {
-      const files = this.fileSystemManager.getAllFiles().map(f => this.fileSystemManager.relativePath(f));
+      const supportedExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs'];
+      const files = this.fileSystemManager.getAllFiles()
+        .filter(f => supportedExtensions.includes(extname(f).toLowerCase()))
+        .map(f => relative(this.CWD, f));
       
       let bundleConfig = null;
       if (existsSync(this.configManager.CONFIG_FILE)) {
