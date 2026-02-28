@@ -435,13 +435,14 @@ export class CntxServer {
 
     // 2. Perform fresh analysis if DB is empty
     try {
-      const patterns = ['**/*.{js,jsx,ts,tsx,mjs}'];
+      const files = this.fileSystemManager.getAllFiles().map(f => this.fileSystemManager.relativePath(f));
+      
       let bundleConfig = null;
       if (existsSync(this.configManager.CONFIG_FILE)) {
         bundleConfig = JSON.parse(readFileSync(this.configManager.CONFIG_FILE, 'utf8'));
       }
 
-      this.semanticCache = await this.semanticSplitter.extractSemanticChunks(this.CWD, patterns, bundleConfig);
+      this.semanticCache = await this.semanticSplitter.extractSemanticChunks(this.CWD, files, bundleConfig);
       this.lastSemanticAnalysis = Date.now();
 
       // 3. Persist chunks to SQLite immediately
