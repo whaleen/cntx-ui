@@ -21,20 +21,20 @@ You are an AI agent with access to a specialized "Repository Intelligence" engin
 ## Available Capabilities
 
 ### 1. Model Context Protocol (MCP) - PRIMARY
-You have direct access to surgical intelligence tools. Refer to the **Intelligence Interface** section in `.cntx/AGENT.md` for full parameter schemas.
+Use MCP tools first: `agent/discover`, `agent/query`, `agent/investigate`, `agent/organize`.
 
 ### 2. HTTP API - FALLBACK
 If MCP is unavailable, use the HTTP endpoints documented in `.cntx/AGENT.md`.
 
 ## Performance Hierarchy (Use in this order):
 
-1. **Semantic Search** (20ms, 90% token savings) - `agent/query` (MCP) or `POST /api/semantic-search` (HTTP)
+1. **Semantic Search** (20ms, 90% token savings) - `agent/query` (MCP), fallback: `POST /api/semantic-search`
    - Use for: code discovery, pattern matching, "find functions that..."
 
-2. **Bundle System** (50ms) - `list_bundles` (MCP) or `GET /api/bundles` (HTTP)
+2. **Bundle System** (50ms) - `list_bundles` (MCP), fallback: `GET /api/bundles`
    - Use for: project structure, file organization, high-level overview
 
-3. **Discovery Mode** - `agent/discover` (MCP) or `GET /api/status` (HTTP)
+3. **Discovery Mode** - `agent/discover` (MCP), fallback: `GET /api/status`
    - Use for: architectural overview and health check.
 
 4. **Traditional Search** (100ms+, high token cost) - `grep/rg/Read`
@@ -57,7 +57,7 @@ _"Tell me about this codebase"_
 
 _"Where is the user authentication handled?"_
 
-- **ALWAYS use vector database first** for semantic discovery (`POST /api/vector-db/search`)
+- **ALWAYS use MCP `agent/query` first** for semantic discovery (fallback: `POST /api/semantic-search`)
 - Use precise queries like "user authentication login session" 
 - Fallback to traditional search only if vector DB fails
 - Always provide specific file paths and line numbers from results
@@ -67,7 +67,7 @@ _"Where is the user authentication handled?"_
 
 _"I want to add dark mode—what already exists?"_
 
-- **Vector search for related patterns** first: "theme dark mode styling colors"
+- **Vector search for related patterns** first: `agent/investigate` (fallback: `POST /api/vector-db/search`)
 - Use the format: ✅ Existing, ⚠️ Partial, ❌ Missing
 - Cross-reference vector results with bundle organization
 - Identify integration points and patterns to follow
@@ -125,25 +125,11 @@ Would you like me to [specific follow-up options]?
 
 ## Efficiency Principles
 
-### Performance Hierarchy (Use in this order):
-
-1. **Vector Database** (20ms, 90% token savings) - `POST /api/vector-db/search`
-   - Use for: code discovery, pattern matching, "find functions that..."
-   - Query format: `{"query": "semantic description", "limit": 5, "minSimilarity": 0.2}`
-
-2. **Bundle System** (50ms) - `GET /api/bundles`
-   - Use for: project structure, file organization, high-level overview
-
-3. **Traditional Search** (100ms+, high token cost) - `grep/rg/Read`
-   - Use ONLY when: exact string matching needed, vector search fails
-   - Examples: specific error messages, exact function names
-
 ### Token Optimization:
 - **Vector search**: ~5k tokens per query vs 50k+ for file reading
 - **Real-time updates**: Vector DB stays current with code changes
-- **Comprehensive coverage**: 315+ indexed code chunks across entire codebase
 
-## Vector Search Examples
+## Vector Search Examples (HTTP fallback)
 
 ### Good Query Patterns:
 ```bash

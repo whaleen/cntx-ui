@@ -39,7 +39,9 @@ export class AgentRuntime {
         let toolsReference = '';
         if (this.cntxServer.mcpServer) {
             const tools = this.cntxServer.mcpServer.getToolDefinitions();
-            toolsReference = tools.map(t => {
+            toolsReference = tools
+                .filter(t => !t.name?.includes('activities'))
+                .map(t => {
                 let params = [];
                 if (t.inputSchema?.properties) {
                     params = Object.entries(t.inputSchema.properties).map(([name, prop]) => {
