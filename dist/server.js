@@ -319,39 +319,6 @@ export async function initConfig(cwd = process.cwd()) {
         cpSync(agentRulesSource, agentRulesDest, { recursive: true });
         console.log('📁 Created agent-rules directory with templates');
     }
-    // Copy activities framework
-    const activitiesDir = join(server.CNTX_DIR, 'activities');
-    if (!existsSync(activitiesDir)) {
-        mkdirSync(activitiesDir, { recursive: true });
-    }
-    // Copy activities README
-    const activitiesReadmeSource = join(templateDir, 'activities', 'README.md');
-    const activitiesReadmeDest = join(activitiesDir, 'README.md');
-    if (existsSync(activitiesReadmeSource) && !existsSync(activitiesReadmeDest)) {
-        copyFileSync(activitiesReadmeSource, activitiesReadmeDest);
-        console.log('📄 Created activities/README.md');
-    }
-    // Copy activities lib directory (MDC templates)
-    const activitiesLibSource = join(templateDir, 'activities', 'lib');
-    const activitiesLibDest = join(activitiesDir, 'lib');
-    if (existsSync(activitiesLibSource) && !existsSync(activitiesLibDest)) {
-        cpSync(activitiesLibSource, activitiesLibDest, { recursive: true });
-        console.log('📁 Created activities/lib with MDC templates');
-    }
-    // Copy activities.json from templates
-    const activitiesJsonPath = join(activitiesDir, 'activities.json');
-    const templateActivitiesJsonPath = join(templateDir, 'activities', 'activities.json');
-    if (!existsSync(activitiesJsonPath) && existsSync(templateActivitiesJsonPath)) {
-        copyFileSync(templateActivitiesJsonPath, activitiesJsonPath);
-        console.log('📄 Created activities.json with bundle example activity');
-    }
-    // Copy example activity from templates
-    const activitiesDestDir = join(activitiesDir, 'activities');
-    const templateActivitiesDir = join(templateDir, 'activities', 'activities');
-    if (!existsSync(activitiesDestDir) && existsSync(templateActivitiesDir)) {
-        cpSync(templateActivitiesDir, activitiesDestDir, { recursive: true });
-        console.log('📁 Created example activity with templates');
-    }
     return server.initMessages;
 }
 export async function generateBundle(name) {
