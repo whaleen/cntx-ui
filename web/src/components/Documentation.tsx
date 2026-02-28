@@ -1,46 +1,97 @@
-// web/src/components/Documentation.tsx
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card'
-import { Alert, AlertDescription } from './ui/alert'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
-import { Terminal, Globe, Code, Layers, Filter, Zap } from 'lucide-react'
+import { Terminal, Globe, Code2, Layers, Cpu, BrainCircuit, DatabaseZap, Search } from 'lucide-react'
+import { Badge } from './ui/badge'
 
-// For React developers using MCP with AI tools
-function UsageGuidance() {
+function Onboarding() {
   return (
-    <Card>
+    <Card className="border-vesper bg-vesper-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
-          <Code className="w-4 h-4" />
-          Context Management for React Developers
+        <CardTitle className="flex items-center gap-2 text-sm font-thin color-vesper-fg">
+          <Cpu className="w-4 h-4 text-vesper-accent" />
+          Repository Intelligence LANDING
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Alert className="border-accent">
-          <Zap className="w-4 h-4" />
-          <AlertDescription>
-            <strong>Target Audience:</strong> React developers who want AI context management as trivial to run as a linter.
-          </AlertDescription>
-        </Alert>
+      <CardContent className="space-y-6">
+        <div className="space-y-2">
+          <h4 className="text-[11px] font-thin uppercase tracking-widest color-vesper-muted">Philosophy</h4>
+          <p className="text-xs color-vesper-fg leading-relaxed">
+            cntx-ui is an autonomous interface layer between your codebase and AI agents. It transforms raw files into surgical, semantic units of knowledge stored in a persistent local brain.
+          </p>
+        </div>
 
         <div className="space-y-4">
-          <div>
-            <h4 className="text-sm font-thin mb-2">What This Tool Does</h4>
-            <div className="text-xs text-muted-foreground space-y-2">
-              <div>• Creates focused code bundles for AI consumption (not copy-paste chaos)</div>
-              <div>• Provides function-level semantic chunking with surgical precision</div>
-              <div>• Acts as MCP server so AI agents access your codebase through APIs</div>
-              <div>• Automatically organizes code by bundle membership and complexity</div>
+          <h4 className="text-[11px] font-thin uppercase tracking-widest color-vesper-muted">Quick Start</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              { step: '1', title: 'Initialize', desc: 'cntx-ui init - Scaffolds the persistent SQLite brain.' },
+              { step: '2', title: 'Intelligence', desc: 'cntx-ui watch - Starts real-time semantic analysis.' },
+              { step: '3', title: 'Connect', desc: 'cntx-ui setup-mcp - Links your agents via .mcp.json.' },
+              { step: '4', title: 'Collaborate', desc: 'Agents land in the repo and read .cntx/AGENT.md.' },
+            ].map((item) => (
+              <div key={item.step} className="p-3 border border-vesper/50 rounded bg-black/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="h-4 w-4 p-0 flex items-center justify-center text-[9px] border-vesper-accent color-vesper-accent">{item.step}</Badge>
+                  <span className="text-[11px] font-bold color-vesper-fg">{item.title}</span>
+                </div>
+                <p className="text-[10px] color-vesper-muted">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AgentIntelligenceGuide() {
+  return (
+    <Card className="border-vesper bg-vesper-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm font-thin color-vesper-fg">
+          <BrainCircuit className="w-4 h-4 text-vesper-accent" />
+          Surgical Semantic Context
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 color-vesper-accent">
+              <DatabaseZap className="w-3 h-3" />
+              <span className="text-[11px] uppercase tracking-tighter font-bold">Persistence</span>
             </div>
+            <p className="text-[10px] color-vesper-muted">Embeddings and chunks are stored in SQLite (\`.cntx/bundles.db\`). Zero re-indexing on startup.</p>
           </div>
-
-          <div>
-            <h4 className="text-sm font-thin mb-2">Quick Start</h4>
-            <div className="text-xs text-muted-foreground space-y-2">
-              <div>1. <strong>MCP Setup:</strong> <code className="bg-muted px-1 rounded">cntx-ui setup-mcp</code></div>
-              <div>2. <strong>Create Bundles:</strong> Use Bundle Config tab to organize your code</div>
-              <div>3. <strong>AI Access:</strong> Claude/Cursor connects via MCP automatically</div>
-              <div>4. <strong>Semantic Analysis:</strong> View function-level chunks in Semantic Chunks tab</div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 color-vesper-accent">
+              <Search className="w-3 h-3" />
+              <span className="text-[11px] uppercase tracking-tighter font-bold">RAG Engine</span>
             </div>
+            <p className="text-[10px] color-vesper-muted">Local vector search powered by Transformers.js allows agents to find code by meaning.</p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 color-vesper-accent">
+              <Layers className="w-3 h-3" />
+              <span className="text-[11px] uppercase tracking-tighter font-bold">Tree-sitter</span>
+            </div>
+            <p className="text-[10px] color-vesper-muted">True AST parsing extracts functions, types, and components with surgical precision.</p>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-vesper/30">
+          <h4 className="text-[11px] font-thin uppercase tracking-widest color-vesper-muted mb-3">Primary Agent Tools</h4>
+          <div className="space-y-2">
+            {[
+              { tool: 'agent/discover', desc: 'Comprehensive architectural overview and health check.' },
+              { tool: 'agent/query', desc: 'Stateful semantic search across the entire persistent brain.' },
+              { tool: 'agent/investigate', desc: 'Impact analysis and integration planning for new features.' },
+              { tool: 'agent/organize', desc: 'Autonomous audit and optimization of codebase structure.' },
+            ].map((t) => (
+              <div key={t.tool} className="flex items-center gap-3 py-1 border-b border-vesper/20">
+                <code className="text-[10px] color-vesper-accent font-mono w-32">{t.tool}</code>
+                <span className="text-[10px] color-vesper-muted">{t.desc}</span>
+              </div>
+            ))}
           </div>
         </div>
       </CardContent>
@@ -48,168 +99,29 @@ function UsageGuidance() {
   )
 }
 
-// Semantic chunking guide for power users
-function SemanticFeaturesGuide() {
+function CliReference() {
   return (
-    <Card>
+    <Card className="border-vesper bg-vesper-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
-          <Filter className="w-4 h-4" />
-          Function-Level Semantic Chunking
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <h4 className="text-sm font-thin mb-2">Why Function-Level Chunks Matter</h4>
-          <div className="text-xs text-muted-foreground space-y-2">
-            <div>• <strong>Surgical precision:</strong> AI gets exactly the function it needs, not entire files</div>
-            <div>• <strong>Context inclusion:</strong> Each chunk includes necessary imports and types</div>
-            <div>• <strong>Bundle inheritance:</strong> Functions automatically grouped by bundle membership</div>
-            <div>• <strong>Complexity analysis:</strong> Identify refactoring candidates with complexity scoring</div>
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-sm font-thin mb-2">Filtering & Organization</h4>
-          <div className="text-xs text-muted-foreground space-y-2">
-            <div>• <strong>By Bundle:</strong> See all frontend vs server functions</div>
-            <div>• <strong>By Type:</strong> React components, hooks, arrow functions, methods</div>
-            <div>• <strong>By Complexity:</strong> Find high-complexity functions needing refactoring</div>
-            <div>• <strong>By Purpose:</strong> API handlers, validation, data processing</div>
-          </div>
-        </div>
-
-        <div className="p-3 rounded border border-accent">
-          <div className="text-xs">
-            <strong>💡 Pro Tip:</strong> Large functions that don't fit in chunks signal refactoring opportunities.
-            The tool nudges better code practices rather than working around bad ones.
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// MCP integration for AI tools
-function MCPFeaturesGuide() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
-          <Globe className="w-4 h-4" />
-          MCP Server Integration
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <h4 className="text-xs font-thin mb-2">How AI Agents Access Your Code</h4>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>• <strong>Gated access:</strong> AI doesn't dump entire codebase, uses API navigation</div>
-            <div>• <strong>Bundle-first approach:</strong> AI sees organized bundles before master bundle</div>
-            <div>• <strong>Real-time updates:</strong> Changes immediately available to connected AI</div>
-            <div>• <strong>Function-level precision:</strong> AI can request specific functions via semantic chunks</div>
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-xs font-thin mb-2">Available MCP Tools</h4>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>• <code>list_bundles</code> - Show available bundle organization</div>
-            <div>• <code>get_bundle</code> - Retrieve focused code bundles</div>
-            <div>• <code>get_semantic_chunks</code> - Access function-level chunks</div>
-            <div>• <code>get_file_tree</code> - Navigate project structure</div>
-          </div>
-        </div>
-
-        <div className="bg-green-50 p-3 rounded border border-green-200">
-          <div className="text-xs">
-            <strong>🎯 Setup:</strong> Run <code className="bg-muted px-1 rounded">cntx-ui setup-mcp</code>
-            and your AI tools (Claude Desktop, Cursor) will automatically connect.
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// AI-first workflow for React developers
-function AIAssistedWorkflow() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
-          <Layers className="w-4 h-4" />
-          AI-Assisted Context Management
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <h4 className="text-xs font-thin mb-2">How AI Navigates Your Code</h4>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>• <strong>Gated access:</strong> AI doesn't see master bundle first - uses API navigation</div>
-            <div>• <strong>Function-level precision:</strong> Requests specific functions via semantic chunks</div>
-            <div>• <strong>Bundle discovery:</strong> Explores organized bundles before diving deep</div>
-            <div>• <strong>Context control:</strong> You control what AI sees through bundle organization</div>
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-xs font-thin mb-2">AI Bundle Creation (Coming Soon)</h4>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>• <strong>"Find all API stuff":</strong> AI analyzes semantic chunks and creates focused bundles</div>
-            <div>• <strong>"Group React hooks":</strong> Intelligent pattern detection and organization</div>
-            <div>• <strong>"Optimize bundles":</strong> AI suggests better organization based on code relationships</div>
-            <div>• <strong>Smart maintenance:</strong> AI updates bundles as your code evolves</div>
-          </div>
-        </div>
-
-        <div className="bg-green-50 p-3 rounded border border-green-200">
-          <div className="text-xs">
-            <strong>🎯 Philosophy:</strong> Context management as trivial as running a linter.
-            AI handles the heavy lifting, you focus on building features.
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// Simple CLI reference without overwhelming detail
-function QuickCliReference() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
-          <Terminal className="w-4 h-4" />
-          Essential CLI Commands
+        <CardTitle className="flex items-center gap-2 text-sm font-thin color-vesper-fg">
+          <Terminal className="w-4 h-4 text-vesper-accent" />
+          Terminal Interface
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
-          <div>
-            <h4 className="text-xs font-thin mb-2">Most Used Commands</h4>
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <code className="bg-muted px-2 py-1 rounded text-xs font-mono">cntx-ui setup-mcp</code>
-                <span className="text-xs text-muted-foreground">Setup MCP for AI tools</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <code className="bg-muted px-2 py-1 rounded text-xs font-mono">cntx-ui watch</code>
-                <span className="text-xs text-muted-foreground">Start server (use web interface)</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <code className="bg-muted px-2 py-1 rounded text-xs font-mono">cntx-ui mcp</code>
-                <span className="text-xs text-muted-foreground">Start MCP server only</span>
-              </div>
+        <div className="space-y-4">
+          {[
+            { cmd: 'cntx-ui init', desc: 'Mark current directory as context-aware.' },
+            { cmd: 'cntx-ui watch', desc: 'Start intelligence engine & dashboard (default: 3333).' },
+            { cmd: 'cntx-ui mcp', desc: 'Direct MCP server startup on stdio.' },
+            { cmd: 'cntx-ui setup-mcp', desc: 'Automatic Claude Desktop configuration.' },
+            { cmd: 'cntx-ui status', desc: 'View database health and bundle coverage.' },
+          ].map((item) => (
+            <div key={item.cmd} className="flex justify-between items-center py-2 border-b border-vesper/30">
+              <code className="text-[11px] font-mono color-vesper-accent"> {item.cmd} </code>
+              <span className="text-[10px] color-vesper-muted">{item.desc}</span>
             </div>
-          </div>
-
-          <div className="bg-gray-50 p-3 rounded border">
-            <div className="text-xs text-muted-foreground">
-              <strong>Recommendation:</strong> Use the web interface for bundle management.
-              CLI is mainly for automation and MCP server startup.
-            </div>
-          </div>
+          ))}
         </div>
       </CardContent>
     </Card>
@@ -219,34 +131,24 @@ function QuickCliReference() {
 export function Documentation() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-thin tracking-tight">Help & Documentation</h1>
-        <p className="text-xs text-muted-foreground font-thin">Usage guides and workflow instructions</p>
-      </div>
-      <Tabs defaultValue="usage-guidance" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-8">
-          <TabsTrigger value="usage-guidance" className="text-xs">Usage Guidance</TabsTrigger>
-          <TabsTrigger value="semantic-features" className="text-xs">Semantic Features</TabsTrigger>
-          <TabsTrigger value="mcp-features" className="text-xs">MCP Features</TabsTrigger>
-          <TabsTrigger value="ai-workflow" className="text-xs">AI Workflow</TabsTrigger>
-          <TabsTrigger value="cli-reference" className="text-xs">CLI Reference</TabsTrigger>
+      <header>
+        <h1 className="text-lg font-thin tracking-tight flex items-center gap-2">
+          <Globe className="w-4 h-4 text-vesper-accent" />
+          System Protocol
+        </h1>
+        <p className="text-xs text-muted-foreground font-thin">Intelligence architecture and workflow specifications</p>
+      </header>
+
+      <Tabs defaultValue="onboarding" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 bg-black/20 p-1 border border-vesper h-9 mb-6">
+          <TabsTrigger value="onboarding" className="text-[10px] uppercase tracking-widest font-thin">Onboarding</TabsTrigger>
+          <TabsTrigger value="intelligence" className="text-[10px] uppercase tracking-widest font-thin">Intelligence</TabsTrigger>
+          <TabsTrigger value="cli" className="text-[10px] uppercase tracking-widest font-thin">CLI Reference</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="usage-guidance" className="mt-2">
-          <UsageGuidance />
-        </TabsContent>
-        <TabsContent value="semantic-features" className="mt-2">
-          <SemanticFeaturesGuide />
-        </TabsContent>
-        <TabsContent value="mcp-features" className="mt-2">
-          <MCPFeaturesGuide />
-        </TabsContent>
-        <TabsContent value="ai-workflow" className="mt-2">
-          <AIAssistedWorkflow />
-        </TabsContent>
-        <TabsContent value="cli-reference" className="mt-2">
-          <QuickCliReference />
-        </TabsContent>
+        <TabsContent value="onboarding" className="m-0"><Onboarding /></TabsContent>
+        <TabsContent value="intelligence" className="m-0"><AgentIntelligenceGuide /></TabsContent>
+        <TabsContent value="cli" className="m-0"><CliReference /></TabsContent>
       </Tabs>
     </div>
   )
