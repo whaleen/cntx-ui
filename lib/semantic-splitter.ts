@@ -11,9 +11,38 @@ import JavaScript from 'tree-sitter-javascript'
 import TypeScript from 'tree-sitter-typescript'
 import Rust from 'tree-sitter-rust'
 import HeuristicsManager from './heuristics-manager.js'
+import { SemanticChunk } from './database-manager.js'
+
+export interface FunctionNode {
+  name: string;
+  type: string;
+  filePath: string;
+  startLine: number;
+  code: string;
+  isExported: boolean;
+  isAsync: boolean;
+}
+
+export interface TypeNode {
+  name: string;
+  type: string;
+  filePath: string;
+  startLine: number;
+  code: string;
+  isExported: boolean;
+}
 
 export default class SemanticSplitter {
-  constructor(options = {}) {
+  options: {
+    maxChunkSize: number;
+    includeContext: boolean;
+    minFunctionSize: number;
+  };
+  parsers: Record<string, Parser>;
+  heuristicsManager: HeuristicsManager;
+  bundleConfig: any;
+
+  constructor(options: { maxChunkSize?: number, includeContext?: boolean, minFunctionSize?: number } = {}) {
     this.options = {
       maxChunkSize: 3000,       // Max chars per chunk
       includeContext: true,     // Include imports/types needed
@@ -36,7 +65,7 @@ export default class SemanticSplitter {
     this.heuristicsManager = new HeuristicsManager()
   }
 
-  getParser(filePath) {
+  getParser(filePath: string): Parser {
     const ext = extname(filePath)
     switch (ext) {
       case '.ts': return this.parsers.typescript
@@ -50,20 +79,20 @@ export default class SemanticSplitter {
    * Main entry point - extract semantic chunks from project
    * Now accepts a pre-filtered list of files from FileSystemManager
    */
-  async extractSemanticChunks(projectPath, files = [], bundleConfig = null) {
+  async extractSemanticChunks(projectPath: string, files: string[] = [], bundleConfig = null) {
     console.log('🔪 Starting surgical semantic splitting via tree-sitter...')
     console.log(`📂 Project path: ${projectPath}`)
     
     this.bundleConfig = bundleConfig
     console.log(`📁 Processing ${files.length} filtered files`)
     
-    const allChunks = []
+    const allChunks: SemanticChunk[] = []
     
     for (const filePath of files) {
       try {
         const fileChunks = this.processFile(filePath, projectPath)
         allChunks.push(...fileChunks)
-      } catch (error) {
+      } catch (error: any) {
         console.warn(`Failed to process ${filePath}: ${error.message}`)
       }
     }
@@ -73,13 +102,13 @@ export default class SemanticSplitter {
       summary: {
         totalFiles: files.length,
         totalChunks: allChunks.length,
-        averageSize: allChunks.length > 0 ? allChunks.reduce((sum, c) => sum + c.code.length, 0) / allChunks.length : 0
+        averageSize: allChunks.length > 0 ? allChunks.reduce((sum, c) => sum + (c.code || '').length, 0) / allChunks.length : 0
       },
       chunks: allChunks
     }
   }
 
-  processFile(relativePath, projectPath) {
+  processFile(relativePath: string, projectPath: string): SemanticChunk[] {
     const fullPath = join(projectPath, relativePath)
     if (!existsSync(fullPath)) return []
     
@@ -89,8 +118,8 @@ export default class SemanticSplitter {
     const root = tree.rootNode
     
     const elements = {
-      functions: [],
-      types: [],
+      functions: [] as FunctionNode[],
+      types: [] as TypeNode[],
       imports: this.extractImports(root, content, relativePath)
     }
 
@@ -101,7 +130,7 @@ export default class SemanticSplitter {
     return this.createChunks(elements, content, relativePath)
   }
 
-  traverse(node, content, filePath, elements) {
+  traverse(node: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {
     // Detect Function Declarations (JS/TS)
     if (node.type === 'function_declaration' || node.type === 'method_definition' || node.type === 'arrow_function') {
       const func = this.mapFunctionNode(node, content, filePath)
@@ -135,7 +164,8 @@ export default class SemanticSplitter {
       const body = node.childForFieldName('body')
       if (body) {
         for (let i = 0; i < body.namedChildCount; i++) {
-          this.traverse(body.namedChild(i), content, filePath, elements)
+          const child = body.namedChild(i);
+          if (child) this.traverse(child, content, filePath, elements)
         }
       }
       return // Don't recurse again below
@@ -144,12 +174,13 @@ export default class SemanticSplitter {
     // Recurse unless we've already captured the block (like a function body)
     if (node.type !== 'function_declaration' && node.type !== 'method_definition' && node.type !== 'function_item') {
       for (let i = 0; i < node.namedChildCount; i++) {
-        this.traverse(node.namedChild(i), content, filePath, elements)
+        const child = node.namedChild(i);
+        if (child) this.traverse(child, content, filePath, elements)
       }
     }
   }
 
-  mapFunctionNode(node, content, filePath) {
+  mapFunctionNode(node: Parser.SyntaxNode, content: string, filePath: string): FunctionNode | null {
     let name = 'anonymous';
     
     // Find name identifier based on node type
@@ -188,7 +219,7 @@ export default class SemanticSplitter {
     }
   }
 
-  mapTypeNode(node, content, filePath) {
+  mapTypeNode(node: Parser.SyntaxNode, content: string, filePath: string): TypeNode | null {
     const nameNode = node.childForFieldName('name')
     if (!nameNode) return null
     
@@ -202,12 +233,12 @@ export default class SemanticSplitter {
     }
   }
 
-  extractImports(root, content, filePath) {
+  extractImports(root: Parser.SyntaxNode, content: string, filePath: string) {
     const imports = []
     // Simple traversal for import/use statements
     for (let i = 0; i < root.namedChildCount; i++) {
       const node = root.namedChild(i)
-      if (node.type === 'import_statement' || node.type === 'use_declaration') {
+      if (node && (node.type === 'import_statement' || node.type === 'use_declaration')) {
         imports.push({
           statement: content.slice(node.startIndex, node.endIndex),
           filePath
@@ -217,22 +248,25 @@ export default class SemanticSplitter {
     return imports
   }
 
-  isExported(node) {
+  isExported(node: Parser.SyntaxNode) {
     // Rust: check for visibility_modifier (pub) as direct child
     for (let i = 0; i < node.namedChildCount; i++) {
-      if (node.namedChild(i).type === 'visibility_modifier') return true
+      const child = node.namedChild(i);
+      if (child && child.type === 'visibility_modifier') return true
     }
-    // JS/TS: check for export_statement ancestor
-    let current = node
-    while (current) {
-      if (current.type === 'export_statement') return true
-      current = current.parent
+    // JS/TS: check for export_statement ancestor or parent
+    let parent = node.parent
+    while (parent) {
+      if (parent.type === 'export_statement' || parent.type === 'export_declaration') {
+        return true
+      }
+      parent = parent.parent
     }
     return false
   }
 
-  createChunks(elements, content, filePath) {
-    const chunks = [];
+  createChunks(elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }, content: string, filePath: string): SemanticChunk[] {
+    const chunks: SemanticChunk[] = [];
     const pathParts = filePath.toLowerCase().split(/[\\\/]/);
     
     for (const func of elements.functions) {
@@ -283,7 +317,7 @@ export default class SemanticSplitter {
     return chunks;
   }
 
-  isImportRelevant(importStatement, functionCode) {
+  isImportRelevant(importStatement: string, functionCode: string) {
     // Rust use statements: use std::collections::HashMap;
     const useMatch = importStatement.match(/^use\s+(.+);?\s*$/)
     if (useMatch) {
@@ -300,7 +334,7 @@ export default class SemanticSplitter {
     return importedNames.some(name => functionCode.includes(name))
   }
 
-  calculateComplexity(code) {
+  calculateComplexity(code: string) {
     const indicators = ['if', 'else', 'for', 'while', 'switch', 'case', 'catch', '?', '&&', '||', 'match', 'loop', 'unsafe', 'unwrap', 'expect'];
     let score = 1;
     indicators.forEach(ind => {
@@ -317,7 +351,7 @@ export default class SemanticSplitter {
     };
   }
 
-  generateTags(func) {
+  generateTags(func: FunctionNode) {
     const tags = [func.type]
     if (func.isExported) tags.push('exported')
     if (func.isAsync) tags.push('async')
@@ -325,12 +359,12 @@ export default class SemanticSplitter {
     return tags
   }
 
-  getFileBundles(filePath) {
+  getFileBundles(filePath: string) {
     if (!this.bundleConfig?.bundles) return []
     const bundles = []
     for (const [name, patterns] of Object.entries(this.bundleConfig.bundles)) {
       if (name === 'master') continue
-      for (const pattern of patterns) {
+      for (const pattern of (patterns as string[])) {
         if (this.matchesPattern(filePath, pattern)) {
           bundles.push(name)
           break
@@ -340,7 +374,7 @@ export default class SemanticSplitter {
     return bundles
   }
 
-  matchesPattern(filePath, pattern) {
+  matchesPattern(filePath: string, pattern: string) {
     const regex = pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*').replace(/\./g, '\\.')
     return new RegExp(`^${regex}$`).test(filePath)
   }

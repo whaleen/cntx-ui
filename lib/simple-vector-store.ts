@@ -5,9 +5,19 @@
  */
 
 import { pipeline } from '@xenova/transformers';
+import DatabaseManager, { SemanticChunk } from './database-manager.js';
+
+export interface SearchResult extends SemanticChunk {
+  similarity: number;
+}
 
 export default class SimpleVectorStore {
-  constructor(databaseManager, options = {}) {
+  db: DatabaseManager;
+  modelName: string;
+  pipe: any;
+  initialized: boolean;
+
+  constructor(databaseManager: DatabaseManager, options: { modelName?: string } = {}) {
     this.db = databaseManager;
     this.modelName = options.modelName || 'Xenova/all-MiniLM-L6-v2';
     this.pipe = null;
@@ -22,7 +32,7 @@ export default class SimpleVectorStore {
     console.log('✅ Local RAG engine ready');
   }
 
-  async generateEmbedding(text) {
+  async generateEmbedding(text: string): Promise<Float32Array> {
     await this.init();
     const output = await this.pipe(text, { pooling: 'mean', normalize: true });
     return new Float32Array(output.data);
@@ -31,7 +41,7 @@ export default class SimpleVectorStore {
   /**
    * Upsert a chunk's embedding to persistence
    */
-  async upsertChunk(chunk) {
+  async upsertChunk(chunk: SemanticChunk): Promise<Float32Array> {
     const chunkId = chunk.id;
     // Check if we already have it in DB
     const existing = this.db.getEmbedding(chunkId);
@@ -49,14 +59,14 @@ export default class SimpleVectorStore {
   /**
    * Semantic Search across persistent embeddings
    */
-  async search(query, options = {}) {
+  async search(query: string, options: { limit?: number, threshold?: number } = {}): Promise<SearchResult[]> {
     const { limit = 10, threshold = 0.5 } = options;
     const queryEmbedding = await this.generateEmbedding(query);
     
     // Load all embeddings from DB
-    const rows = this.db.db.prepare('SELECT chunk_id, embedding FROM vector_embeddings WHERE model_name = ?').all(this.modelName);
+    const rows = this.db.db.prepare('SELECT chunk_id, embedding FROM vector_embeddings WHERE model_name = ?').all(this.modelName) as { chunk_id: string, embedding: Buffer }[];
     
-    const results = [];
+    const results: { chunkId: string, similarity: number }[] = [];
     const batchSize = 100;
     
     // Process in batches to prevent blocking the event loop
@@ -86,15 +96,15 @@ export default class SimpleVectorStore {
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit)
       .map(res => {
-        const chunk = this.db.db.prepare('SELECT * FROM semantic_chunks WHERE id = ?').get(res.chunkId);
+        const chunkRow = this.db.db.prepare('SELECT * FROM semantic_chunks WHERE id = ?').get(res.chunkId);
         return {
-          ...this.db.mapChunkRow(chunk),
+          ...this.db.mapChunkRow(chunkRow),
           similarity: res.similarity
         };
       });
   }
 
-  cosineSimilarity(vecA, vecB) {
+  cosineSimilarity(vecA: Float32Array, vecB: Float32Array): number {
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;

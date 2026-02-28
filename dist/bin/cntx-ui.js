@@ -1,0 +1,70 @@
+#!/usr/bin/env node
+import { readFileSync, existsSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { startServer, initConfig } from '../server.js';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+let packagePath = join(__dirname, '..', 'package.json');
+if (!existsSync(packagePath)) {
+    packagePath = join(__dirname, '..', '..', 'package.json');
+}
+const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+const args = process.argv.slice(2);
+const command = args[0] || 'help';
+const isVerbose = args.includes('--verbose');
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('\n👋 Shutting down cntx-ui...');
+    process.exit(0);
+});
+async function main() {
+    try {
+        const actualCommand = command === 'w' ? 'watch' : command;
+        switch (actualCommand) {
+            case 'watch':
+                const port = parseInt(args[1]) || 3333;
+                // Enable MCP status tracking by default for the web dashboard
+                const withMcp = !args.includes('--no-mcp');
+                await startServer({ port, withMcp, verbose: isVerbose });
+                break;
+            case 'init':
+                console.log('🚀 Initializing cntx-ui...');
+                await initConfig();
+                console.log('🎉 cntx-ui initialized with full scaffolding!');
+                break;
+            case 'mcp':
+                await startServer({ withMcp: true, skipFileWatcher: true, skipBundleGeneration: true });
+                break;
+            case 'version':
+            case '-v':
+            case '--version':
+                console.log(`v${packageJson.version}`);
+                break;
+            case 'help':
+            default:
+                console.log(`
+cntx-ui v${packageJson.version} - Repository Intelligence engine
+
+Usage:
+  cntx-ui watch [port]    Start the visual dashboard and intelligence engine (default: 3333)
+  cntx-ui init            Initialize cntx-ui configuration in the current directory
+  cntx-ui mcp             Start the Model Context Protocol (MCP) server on stdio
+  cntx-ui version         Show current version
+  cntx-ui help            Show this help information
+
+Options:
+  --verbose               Show detailed logging
+  --no-mcp                Disable MCP server when running watch
+        `);
+                break;
+        }
+    }
+    catch (error) {
+        console.error(`❌ Error: ${error.message}`);
+        if (isVerbose) {
+            console.error(error.stack);
+        }
+        process.exit(1);
+    }
+}
+main().catch(console.error);

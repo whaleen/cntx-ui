@@ -3,11 +3,24 @@
  * Handles file operations, pattern matching, and directory traversal
  */
 
-import { readdirSync, readFileSync, statSync, existsSync, watch } from 'fs';
+import { readdirSync, readFileSync, statSync, existsSync, watch, FSWatcher, Stats } from 'fs';
 import { join, relative, extname, basename, dirname } from 'path';
 
+export interface FileNode {
+  path: string;
+  fullPath: string;
+  size: number;
+  modified: string;
+  type: string;
+}
+
 export default class FileSystemManager {
-  constructor(cwd = process.cwd(), options = {}) {
+  CWD: string;
+  verbose: boolean;
+  watchers: FSWatcher[];
+  ignorePatterns: string[];
+
+  constructor(cwd: string = process.cwd(), options: { verbose?: boolean } = {}) {
     this.CWD = cwd;
     this.verbose = options.verbose || false;
     this.watchers = [];
@@ -25,7 +38,7 @@ export default class FileSystemManager {
           .filter(line => line && !line.startsWith('#'));
         this.ignorePatterns = patterns;
         if (this.verbose) console.log(`📋 Loaded ${patterns.length} patterns from .cntxignore`);
-      } catch (e) {
+      } catch (e: any) {
         console.error('Failed to load .cntxignore:', e.message);
       }
     }
@@ -33,7 +46,7 @@ export default class FileSystemManager {
 
   // === File Traversal ===
 
-  getAllFiles(dir = this.CWD, files = []) {
+  getAllFiles(dir: string = this.CWD, files: string[] = []): string[] {
     try {
       const items = readdirSync(dir);
 
@@ -60,7 +73,7 @@ export default class FileSystemManager {
           continue;
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       if (this.verbose) {
         console.warn(`Cannot read directory ${dir}: ${error.message}`);
       }
@@ -69,7 +82,7 @@ export default class FileSystemManager {
     return files;
   }
 
-  getFileTree() {
+  getFileTree(): FileNode[] {
     const files = this.getAllFiles();
 
     return files.map(file => {
@@ -88,7 +101,7 @@ export default class FileSystemManager {
 
   // === Pattern Matching ===
 
-  matchesPattern(path, pattern) {
+  matchesPattern(path: string, pattern: string): boolean {
     // Convert glob pattern to regex
     let regexPattern = pattern
       .replace(/\./g, '\\.')           // Escape dots
@@ -113,7 +126,7 @@ export default class FileSystemManager {
     return regex.test(relativePath) || regex.test(path);
   }
 
-  shouldIgnoreFile(filePath) {
+  shouldIgnoreFile(filePath: string): boolean {
     const relativePath = relative(this.CWD, filePath);
 
     return this.ignorePatterns.some(pattern =>
@@ -122,7 +135,7 @@ export default class FileSystemManager {
     );
   }
 
-  shouldIgnoreAnything(itemName, fullPath) {
+  shouldIgnoreAnything(itemName: string, fullPath: string): boolean {
     // Hardcoded bad directories and files to always ignore
     const badDirs = [
       'node_modules', '.git', '.svn', '.hg', '.bzr', '_darcs',
@@ -188,28 +201,22 @@ export default class FileSystemManager {
 
   // === File Metadata ===
 
-  getFileStats(filePath) {
+  getFileStats(filePath: string): Stats {
     try {
-      const stats = statSync(filePath);
-      return {
-        size: stats.size,
-        mtime: stats.mtime,
-        ctime: stats.ctime,
-        isDirectory: stats.isDirectory(),
-        isFile: stats.isFile()
-      };
+      return statSync(filePath);
     } catch (error) {
+      // Return a mock stats object for missing files
       return {
         size: 0,
         mtime: new Date(0),
         ctime: new Date(0),
-        isDirectory: false,
-        isFile: false
-      };
+        isDirectory: () => false,
+        isFile: () => false
+      } as Stats;
     }
   }
 
-  getFileType(filePath) {
+  getFileType(filePath: string): string {
     const ext = extname(filePath).toLowerCase();
     const fileName = basename(filePath).toLowerCase();
 
@@ -258,139 +265,9 @@ export default class FileSystemManager {
     return 'unknown';
   }
 
-  getFileRole(file) {
-    const fileName = basename(file).toLowerCase();
-    const filePath = file.toLowerCase();
-    const ext = extname(file).toLowerCase();
-
-    // Entry points
-    if (fileName.match(/^(main|index|app)\.(js|jsx|ts|tsx)$/)) {
-      return 'entry_point';
-    }
-
-    // Configuration
-    if (fileName.includes('config') || fileName.includes('setup') ||
-      ext.match(/\.(json|yaml|yml|toml|ini)$/)) {
-      return 'configuration';
-    }
-
-    // Documentation
-    if (fileName.includes('readme') || ext === '.md' || ext === '.txt') {
-      return 'documentation';
-    }
-
-    // Tests
-    if (fileName.includes('.test.') || fileName.includes('.spec.') ||
-      filePath.includes('/test/') || filePath.includes('/__tests__/')) {
-      return 'test';
-    }
-
-    // Components
-    if (ext.match(/\.(jsx|tsx|vue)$/) || filePath.includes('/components/')) {
-      return 'component';
-    }
-
-    // Utilities
-    if (filePath.includes('/utils/') || filePath.includes('/helpers/') ||
-      filePath.includes('/lib/')) {
-      return 'utility';
-    }
-
-    // Styles
-    if (ext.match(/\.(css|scss|sass|less|styl)$/)) {
-      return 'style';
-    }
-
-    return 'implementation';
-  }
-
-  // === File Categorization ===
-
-  categorizeFiles(files) {
-    const categories = {
-      'entry_points': [],
-      'components': [],
-      'hooks': [],
-      'utilities': [],
-      'types': [],
-      'styles': [],
-      'tests': [],
-      'configuration': [],
-      'documentation': [],
-      'other': []
-    };
-
-    files.forEach(file => {
-      const ext = extname(file).toLowerCase();
-      const fileName = basename(file).toLowerCase();
-      const filePath = file.toLowerCase();
-
-      // Entry points
-      if (fileName.match(/^(main|index|app)\.(js|jsx|ts|tsx)$/)) {
-        categories.entry_points.push(file);
-      }
-      // Components
-      else if (ext.match(/\.(jsx|tsx|vue)$/) || filePath.includes('/components/')) {
-        categories.components.push(file);
-      }
-      // Hooks
-      else if (filePath.includes('/hooks/') || fileName.startsWith('use') && ext.match(/\.(js|ts)$/)) {
-        categories.hooks.push(file);
-      }
-      // Utilities
-      else if (filePath.includes('/utils/') || filePath.includes('/helpers/') || filePath.includes('/lib/')) {
-        categories.utilities.push(file);
-      }
-      // Types
-      else if (fileName.includes('.d.ts') || filePath.includes('/types/') || fileName.includes('types')) {
-        categories.types.push(file);
-      }
-      // Styles
-      else if (ext.match(/\.(css|scss|sass|less|styl)$/)) {
-        categories.styles.push(file);
-      }
-      // Tests
-      else if (fileName.includes('.test.') || fileName.includes('.spec.') || filePath.includes('/test/') || filePath.includes('/__tests__/')) {
-        categories.tests.push(file);
-      }
-      // Configuration
-      else if (ext.match(/\.(json|yaml|yml|toml|ini)$/) || fileName.includes('config')) {
-        categories.configuration.push(file);
-      }
-      // Documentation
-      else if (ext.match(/\.(md|txt|rst)$/)) {
-        categories.documentation.push(file);
-      }
-      // Other
-      else {
-        categories.other.push(file);
-      }
-    });
-
-    return categories;
-  }
-
-  identifyEntryPoints(files) {
-    const entryPoints = [];
-    const entryPatterns = [
-      /^(main|index|app)\.(js|jsx|ts|tsx)$/i,
-      /^server\.(js|ts)$/i,
-      /^app\.(js|jsx|ts|tsx)$/i
-    ];
-
-    files.forEach(file => {
-      const fileName = basename(file);
-      if (entryPatterns.some(pattern => pattern.test(fileName))) {
-        entryPoints.push(file);
-      }
-    });
-
-    return entryPoints;
-  }
-
   // === File Watching ===
 
-  startWatching(onFileChange) {
+  startWatching(onFileChange: (eventType: string, filename: string) => void) {
     try {
       // Watch the current working directory recursively
       const watcher = watch(this.CWD, { recursive: true }, (eventType, filename) => {
@@ -403,7 +280,7 @@ export default class FileSystemManager {
       if (this.verbose) {
         console.log('📁 File watcher started');
       }
-    } catch (error) {
+    } catch (error: any) {
       if (this.verbose) {
         console.error('Failed to start file watcher:', error.message);
       }
@@ -414,7 +291,7 @@ export default class FileSystemManager {
     this.watchers.forEach(watcher => {
       try {
         watcher.close();
-      } catch (error) {
+      } catch (error: any) {
         if (this.verbose) {
           console.error('Failed to close watcher:', error.message);
         }
@@ -426,58 +303,25 @@ export default class FileSystemManager {
     }
   }
 
-  // === Content Type Detection ===
-
-  getContentType(filePath) {
-    const ext = extname(filePath).toLowerCase();
-    const contentTypes = {
-      '.html': 'text/html',
-      '.js': 'application/javascript',
-      '.css': 'text/css',
-      '.json': 'application/json',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon',
-      '.txt': 'text/plain',
-      '.md': 'text/markdown',
-      '.xml': 'application/xml',
-      '.pdf': 'application/pdf',
-      '.zip': 'application/zip'
-    };
-    return contentTypes[ext] || 'text/plain';
-  }
-
   // === Utilities ===
 
-  setIgnorePatterns(patterns) {
+  setIgnorePatterns(patterns: string[]) {
     this.ignorePatterns = patterns;
   }
 
-  relativePath(filePath) {
+  relativePath(filePath: string): string {
     return relative(this.CWD, filePath);
   }
 
-  absolutePath(relativePath) {
+  fullPath(relativePath: string): string {
     return join(this.CWD, relativePath);
   }
 
-  isValidPath(filePath) {
+  isValidPath(filePath: string): boolean {
     try {
       return existsSync(filePath);
     } catch (error) {
       return false;
-    }
-  }
-
-  getDirectoryContents(dirPath) {
-    try {
-      const items = readdirSync(dirPath);
-      return items.filter(item => !this.shouldIgnoreAnything(item, join(dirPath, item)));
-    } catch (error) {
-      return [];
     }
   }
 

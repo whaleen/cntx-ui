@@ -3,23 +3,62 @@
  * Handles SQLite operations for bundle and file data
  */
 
-import Database from 'better-sqlite3';
+import Database, { Database as SQLiteDatabase } from 'better-sqlite3';
 import { join } from 'path';
 import { statSync } from 'fs';
 
+export interface SemanticChunk {
+  id: string;
+  name: string;
+  filePath: string;
+  type: string;
+  subtype: string;
+  code: string;
+  content?: string;
+  startLine: number;
+  complexity?: {
+    score: number;
+    level: string;
+  };
+  purpose: string;
+  tags?: string[];
+  includes?: {
+    imports: string[];
+    types: string[];
+  };
+  bundles?: string[];
+  businessDomain?: string[];
+  technicalPatterns?: string[];
+}
+
+export interface DatabaseInfo {
+  path: string;
+  bundleCount: number;
+  chunkCount: number;
+  embeddingCount: number;
+  sessionCount: number;
+  sizeBytes: number;
+  sizeFormatted: string;
+  tables: string[];
+  error?: string;
+}
+
 export default class DatabaseManager {
-  constructor(cntxDir, options = {}) {
-    this.cntxDir = cntxDir;
+  dbPath: string;
+  db: SQLiteDatabase;
+  verbose: boolean;
+
+  constructor(dbDir: string, options: { verbose?: boolean } = {}) {
+    this.dbPath = join(dbDir, 'bundles.db');
     this.verbose = options.verbose || false;
-    this.dbPath = join(cntxDir, 'bundles.db');
-    
+
     try {
       this.db = new Database(this.dbPath);
-      this.initSchema();
       if (this.verbose) {
         console.log(`📊 SQLite database initialized: ${this.dbPath}`);
       }
-    } catch (error) {
+      this.initSchema();
+    } catch (error: any) {
       console.error('Failed to initialize SQLite database:', error.message);
       throw error;
     }
@@ -87,154 +126,49 @@ export default class DatabaseManager {
     `);
   }
 
-  // Save all bundles from bundleStates Map
-  saveBundles(bundleStates) {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO bundles (name, patterns, files, size, file_count, generated_at, changed) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const transaction = this.db.transaction(() => {
-      for (const [name, bundle] of bundleStates) {
-        stmt.run(
-          name,
-          JSON.stringify(bundle.patterns || []),
-          JSON.stringify(bundle.files || []),
-          bundle.size || 0,
-          bundle.files ? bundle.files.length : 0,
-          bundle.generated || null,
-          bundle.changed ? 1 : 0
-        );
-      }
-    });
-
+  /**
+   * Run a raw SELECT query against the database
+   */
+  query(sql: string) {
     try {
-      transaction();
-      if (this.verbose) {
-        console.log(`💾 Saved ${bundleStates.size} bundles to SQLite`);
-      }
-    } catch (error) {
-      console.error('Failed to save bundles to SQLite:', error.message);
-      throw error;
-    }
-  }
-
-  // Load all bundles and return as Map
-  loadBundles() {
-    try {
-      const rows = this.db.prepare('SELECT * FROM bundles').all();
-      const bundleStates = new Map();
-
-      rows.forEach(row => {
-        bundleStates.set(row.name, {
-          patterns: JSON.parse(row.patterns),
-          files: JSON.parse(row.files),
-          size: row.size,
-          generated: row.generated_at,
-          changed: Boolean(row.changed)
-        });
-      });
-
-      if (this.verbose) {
-        console.log(`📊 Loaded ${bundleStates.size} bundles from SQLite`);
-      }
-
-      return bundleStates;
-    } catch (error) {
-      console.error('Failed to load bundles from SQLite:', error.message);
-      return new Map();
-    }
-  }
-
-  // Get single bundle by name
-  getBundle(name) {
-    try {
-      const row = this.db.prepare('SELECT * FROM bundles WHERE name = ?').get(name);
-      if (!row) return null;
-
-      return {
-        patterns: JSON.parse(row.patterns),
-        files: JSON.parse(row.files),
-        size: row.size,
-        generated: row.generated_at,
-        changed: Boolean(row.changed)
-      };
-    } catch (error) {
-      console.error(`Failed to get bundle ${name}:`, error.message);
-      return null;
-    }
-  }
-
-  // Delete bundle
-  deleteBundle(name) {
-    try {
-      const stmt = this.db.prepare('DELETE FROM bundles WHERE name = ?');
-      const result = stmt.run(name);
-      
-      if (this.verbose && result.changes > 0) {
-        console.log(`🗑️ Deleted bundle: ${name}`);
-      }
-      
-      return result.changes > 0;
-    } catch (error) {
-      console.error(`Failed to delete bundle ${name}:`, error.message);
-      return false;
-    }
-  }
-
-  // Get all bundle names
-  getBundleNames() {
-    try {
-      const rows = this.db.prepare('SELECT name FROM bundles ORDER BY name').all();
-      return rows.map(row => row.name);
-    } catch (error) {
-      console.error('Failed to get bundle names:', error.message);
-      return [];
-    }
-  }
-
-  // Query interface for database tab
-  query(sql) {
-    try {
-      // Safety: only allow SELECT statements for now
-      if (!sql.trim().toLowerCase().startsWith('select')) {
+      if (!sql.trim().toUpperCase().startsWith('SELECT')) {
         throw new Error('Only SELECT queries are allowed');
       }
       
       const stmt = this.db.prepare(sql);
       return stmt.all();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Query failed:', error.message);
       throw error;
     }
   }
 
   // Get database info for debugging
-  getInfo() {
+  getInfo(): DatabaseInfo | { error: string } {
     try {
-      const bundleCount = this.db.prepare('SELECT COUNT(*) as count FROM bundles').get().count;
-      const chunkCount = this.db.prepare('SELECT COUNT(*) as count FROM semantic_chunks').get().count;
-      const embeddingCount = this.db.prepare('SELECT COUNT(*) as count FROM vector_embeddings').get().count;
-      const sessionCount = this.db.prepare('SELECT COUNT(*) as count FROM agent_sessions').get().count;
+      const bundleCountRow = this.db.prepare('SELECT COUNT(*) as count FROM bundles').get() as { count: number };
+      const chunkCountRow = this.db.prepare('SELECT COUNT(*) as count FROM semantic_chunks').get() as { count: number };
+      const embeddingCountRow = this.db.prepare('SELECT COUNT(*) as count FROM vector_embeddings').get() as { count: number };
+      const sessionCountRow = this.db.prepare('SELECT COUNT(*) as count FROM agent_sessions').get() as { count: number };
       const dbSize = statSync(this.dbPath).size;
       
       return {
         path: this.dbPath,
-        bundleCount,
-        chunkCount,
-        embeddingCount,
-        sessionCount,
+        bundleCount: bundleCountRow.count,
+        chunkCount: chunkCountRow.count,
+        embeddingCount: embeddingCountRow.count,
+        sessionCount: sessionCountRow.count,
         sizeBytes: dbSize,
         sizeFormatted: (dbSize / 1024).toFixed(1) + ' KB',
         tables: ['bundles', 'semantic_chunks', 'vector_embeddings', 'agent_sessions', 'agent_memory']
       };
-    } catch (error) {
+    } catch (error: any) {
       return { error: error.message };
     }
   }
 
   // Save semantic chunks
-  saveChunks(chunks) {
+  saveChunks(chunks: SemanticChunk[]) {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO semantic_chunks (id, name, file_path, type, subtype, content, start_line, complexity_score, purpose, metadata) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -269,16 +203,16 @@ export default class DatabaseManager {
     try {
       transaction();
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save chunks to SQLite:', error.message);
       return false;
     }
   }
 
   // Get chunks for a specific file
-  getChunksByFile(filePath) {
+  getChunksByFile(filePath: string): SemanticChunk[] {
     try {
-      const rows = this.db.prepare('SELECT * FROM semantic_chunks WHERE file_path = ?').all(filePath);
+      const rows = this.db.prepare('SELECT * FROM semantic_chunks WHERE file_path = ?').all(filePath) as any[];
       return rows.map(row => this.mapChunkRow(row));
     } catch (error) {
       return [];
@@ -286,20 +220,20 @@ export default class DatabaseManager {
   }
 
   // Search chunks by name or purpose
-  searchChunks(query) {
+  searchChunks(query: string): SemanticChunk[] {
     try {
       const rows = this.db.prepare(`
         SELECT * FROM semantic_chunks 
         WHERE name LIKE ? OR purpose LIKE ? 
         LIMIT 50
-      `).all(`%${query}%`, `%${query}%`);
+      `).all(`%${query}%`, `%${query}%`) as any[];
       return rows.map(row => this.mapChunkRow(row));
     } catch (error) {
       return [];
     }
   }
 
-  mapChunkRow(row) {
+  mapChunkRow(row: any): SemanticChunk {
     const metadata = JSON.parse(row.metadata || '{}');
     return {
       id: row.id,
@@ -309,7 +243,10 @@ export default class DatabaseManager {
       subtype: row.subtype,
       code: row.content,
       startLine: row.start_line,
-      complexity: { score: row.complexity_score },
+      complexity: { 
+        score: row.complexity_score,
+        level: row.complexity_score < 5 ? 'low' : row.complexity_score < 15 ? 'medium' : 'high'
+      },
       purpose: row.purpose,
       tags: metadata.tags || [],
       businessDomain: metadata.businessDomain || [],
@@ -323,7 +260,7 @@ export default class DatabaseManager {
   }
 
   // Vector Embedding Persistence
-  saveEmbedding(chunkId, embedding, modelName) {
+  saveEmbedding(chunkId: string, embedding: Float32Array, modelName: string) {
     try {
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO vector_embeddings (chunk_id, embedding, model_name) 
@@ -333,15 +270,15 @@ export default class DatabaseManager {
       const buffer = Buffer.from(embedding.buffer);
       stmt.run(chunkId, buffer, modelName);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Failed to save embedding for ${chunkId}:`, error.message);
       return false;
     }
   }
 
-  getEmbedding(chunkId) {
+  getEmbedding(chunkId: string): Float32Array | null {
     try {
-      const row = this.db.prepare('SELECT embedding FROM vector_embeddings WHERE chunk_id = ?').get(chunkId);
+      const row = this.db.prepare('SELECT embedding FROM vector_embeddings WHERE chunk_id = ?').get(chunkId) as { embedding: Buffer } | undefined;
       if (!row) return null;
       // Convert Buffer back to Float32Array
       return new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4);
@@ -351,7 +288,7 @@ export default class DatabaseManager {
   }
 
   // Agent Memory Methods
-  createSession(id, title) {
+  createSession(id: string, title: string) {
     try {
       const stmt = this.db.prepare('INSERT OR REPLACE INTO agent_sessions (id, title) VALUES (?, ?)');
       stmt.run(id, title);
@@ -361,7 +298,7 @@ export default class DatabaseManager {
     }
   }
 
-  addMessage(sessionId, role, content, metadata = {}) {
+  addMessage(sessionId: string, role: string, content: string, metadata: any = {}) {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO agent_memory (session_id, role, content, metadata) 
@@ -377,7 +314,7 @@ export default class DatabaseManager {
     }
   }
 
-  getSessionHistory(sessionId) {
+  getSessionHistory(sessionId: string) {
     try {
       return this.db.prepare('SELECT * FROM agent_memory WHERE session_id = ? ORDER BY timestamp ASC').all(sessionId);
     } catch (error) {

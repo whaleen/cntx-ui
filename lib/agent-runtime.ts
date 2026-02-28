@@ -8,9 +8,27 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { CntxServer } from '../server.js';
+import DatabaseManager from './database-manager.js';
+
+export interface DiscoveryOptions {
+  scope?: string;
+  includeDetails?: boolean;
+}
+
+export interface QueryOptions {
+  scope?: string | null;
+  maxResults?: number;
+  includeCode?: boolean;
+}
 
 export class AgentRuntime {
-  constructor(cntxServer) {
+  cntxServer: CntxServer;
+  db: DatabaseManager;
+  tools: AgentTools;
+  currentSessionId: string | null;
+
+  constructor(cntxServer: CntxServer) {
     this.cntxServer = cntxServer;
     this.db = cntxServer.databaseManager;
     this.tools = new AgentTools(cntxServer);
@@ -20,7 +38,7 @@ export class AgentRuntime {
   /**
    * Initialize or resume a session
    */
-  async startSession(id = null, title = 'New Exploration') {
+  async startSession(id: string | null = null, title = 'New Exploration'): Promise<string> {
     this.currentSessionId = id || crypto.randomUUID();
     this.db.createSession(this.currentSessionId, title);
     // Refresh manifest when a new session starts
@@ -39,11 +57,11 @@ export class AgentRuntime {
     // Auto-generate tool reference from MCP server
     let toolsReference = '';
     if (this.cntxServer.mcpServer) {
-      const tools = this.cntxServer.mcpServer.getToolDefinitions();
-      toolsReference = tools.map(t => {
-        let params = [];
+      const tools = (this.cntxServer.mcpServer as any).getToolDefinitions();
+      toolsReference = (tools as any[]).map(t => {
+        let params: string[] = [];
         if (t.inputSchema?.properties) {
-          params = Object.entries(t.inputSchema.properties).map(([name, prop]) => {
+          params = Object.entries(t.inputSchema.properties).map(([name, prop]: [string, any]) => {
             const isReq = t.inputSchema.required?.includes(name) ? 'required' : 'optional';
             return `\`${name}\` (${prop.type}, ${isReq}): ${prop.description}`;
           });
@@ -89,22 +107,22 @@ This agent is **stateful**. All interactions in this directory are logged to a p
   /**
    * Log an interaction to the agent's memory
    */
-  async logInteraction(role, content, metadata = {}) {
+  async logInteraction(role: string, content: string, metadata: any = {}) {
     if (!this.currentSessionId) await this.startSession();
-    this.db.addMessage(this.currentSessionId, role, content, metadata);
+    this.db.addMessage(this.currentSessionId!, role, content, metadata);
   }
 
   /**
    * Discovery Mode: "Tell me about this codebase"
    * Now logs the discovery process to memory
    */
-  async discoverCodebase(options = {}) {
+  async discoverCodebase(options: DiscoveryOptions = {}) {
     const { scope = 'all', includeDetails = true } = options;
     
     try {
       await this.logInteraction('agent', `Starting codebase discovery for scope: ${scope}`);
       
-      const discovery = {
+      const discovery: any = {
         overview: await this.getCodebaseOverview(),
         bundles: await this.analyzeBundles(scope),
         architecture: await this.analyzeArchitecture(),
@@ -118,12 +136,12 @@ This agent is **stateful**. All interactions in this directory are logged to a p
         discovery.complexity = await this.analyzeComplexity();
       }
 
-      discovery.recommendations = await this.generateDiscoveryRecommendations(discovery);
+      discovery.recommendations = await this.generateDiscoveryRecommendations();
       
       await this.logInteraction('agent', `Discovery complete. Found ${discovery.overview.totalFiles} files.`, { discovery });
 
       return discovery;
-    } catch (error) {
+    } catch (error: any) {
       await this.logInteraction('agent', `Discovery failed: ${error.message}`);
       throw new Error(`Discovery failed: ${error.message}`);
     }
@@ -133,8 +151,8 @@ This agent is **stateful**. All interactions in this directory are logged to a p
    * Query Mode: "Where is the user authentication handled?"
    * Now recalls previous context from SQLite
    */
-  async answerQuery(question, options = {}) {
-    const { scope = null, maxResults = 10, includeCode = false } = options;
+  async answerQuery(question: string, options: QueryOptions = {}) {
+    const { maxResults = 10, includeCode = false } = options;
 
     try {
       await this.logInteraction('user', question);
@@ -156,7 +174,7 @@ This agent is **stateful**. All interactions in this directory are logged to a p
       await this.logInteraction('agent', response.answer, { response });
 
       return response;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Query failed: ${error.message}`);
     }
   }
@@ -164,13 +182,13 @@ This agent is **stateful**. All interactions in this directory are logged to a p
   /**
    * Feature Investigation Mode: Now persists the investigation approach
    */
-  async investigateFeature(featureDescription, options = {}) {
+  async investigateFeature(featureDescription: string, options: any = {}) {
     const { includeRecommendations = true } = options;
 
     try {
       await this.logInteraction('user', `Investigating feature: ${featureDescription}`);
       
-      const investigation = {
+      const investigation: any = {
         feature: featureDescription,
         existing: await this.findExistingImplementations(featureDescription),
         related: await this.findRelatedCode(featureDescription),
@@ -184,12 +202,12 @@ This agent is **stateful**. All interactions in this directory are logged to a p
       await this.logInteraction('agent', `Investigation complete for ${featureDescription}`, { investigation });
 
       return investigation;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Feature investigation failed: ${error.message}`);
     }
   }
 
-  // --- Helper Methods (reusing your existing logic but streamlined) ---
+  // --- Helper Methods ---
 
   async getCodebaseOverview() {
     const bundles = Array.from(this.cntxServer.bundleManager.getAllBundleInfo());
@@ -205,17 +223,17 @@ This agent is **stateful**. All interactions in this directory are logged to a p
     };
   }
 
-  async analyzeBundles(scope) {
+  async analyzeBundles(scope: string) {
     const bundles = this.cntxServer.bundleManager.getAllBundleInfo();
     const filtered = scope === 'all' ? bundles : bundles.filter(b => b.name === scope);
     
     return filtered.map(b => ({
       ...b,
-      purpose: this.inferBundlePurpose(b.name, b.files)
+      purpose: this.inferBundlePurpose(b.name, b.files || [])
     }));
   }
 
-  inferBundlePurpose(name, files) {
+  inferBundlePurpose(name: string, files: string[]) {
     if (name.includes('component') || name.includes('ui')) return 'UI Components';
     if (name.includes('api') || name.includes('server')) return 'Backend API';
     return 'General Module';
@@ -236,22 +254,22 @@ This agent is **stateful**. All interactions in this directory are logged to a p
   }
 
   async getSemanticSummary() {
-    const chunks = this.db.db.prepare('SELECT COUNT(*) as count FROM semantic_chunks').get();
+    const chunks = this.db.db.prepare('SELECT COUNT(*) as count FROM semantic_chunks').get() as { count: number };
     return { totalChunks: chunks.count };
   }
 
   async analyzeFileTypes() {
-    const rows = this.db.db.prepare('SELECT file_path FROM semantic_chunks').all();
-    const exts = {};
+    const rows = this.db.db.prepare('SELECT file_path FROM semantic_chunks').all() as { file_path: string }[];
+    const exts: Record<string, number> = {};
     rows.forEach(r => {
-      const ext = r.file_path.split('.').pop();
+      const ext = r.file_path.split('.').pop() || 'unknown';
       exts[ext] = (exts[ext] || 0) + 1;
     });
     return exts;
   }
 
   async analyzeComplexity() {
-    const rows = this.db.db.prepare('SELECT complexity_score FROM semantic_chunks').all();
+    const rows = this.db.db.prepare('SELECT complexity_score FROM semantic_chunks').all() as { complexity_score: number }[];
     const scores = { low: 0, medium: 0, high: 0 };
     rows.forEach(r => {
       if (r.complexity_score < 5) scores.low++;
@@ -265,93 +283,23 @@ This agent is **stateful**. All interactions in this directory are logged to a p
     return [{ type: 'info', message: 'Continue organizing by semantic purpose.' }];
   }
 
-  async findExistingImplementations(featureDescription) {
+  async findExistingImplementations(featureDescription: string) {
     return await this.cntxServer.vectorStore.search(featureDescription, { limit: 5 });
   }
 
-  async findRelatedCode(featureDescription) {
+  async findRelatedCode(featureDescription: string) {
     return [];
   }
 
-  async findIntegrationPoints(featureDescription) {
+  async findIntegrationPoints(featureDescription: string) {
     return [];
   }
 
-  async suggestImplementationApproach(investigation) {
+  async suggestImplementationApproach(investigation: any) {
     return { strategy: 'TBD', description: 'Ready to plan' };
   }
 
-  /**
-   * Discussion Mode: Engage in architectural discussion about the codebase
-   */
-  async discussAndPlan(userInput, context = {}) {
-    try {
-      await this.logInteraction('user', userInput);
-
-      const overview = await this.getCodebaseOverview();
-      const searchResults = await this.cntxServer.vectorStore.search(userInput, { limit: 5 });
-
-      const response = {
-        input: userInput,
-        context,
-        overview,
-        relevantCode: searchResults.map(r => ({
-          name: r.name,
-          filePath: r.filePath,
-          purpose: r.purpose,
-          type: r.type
-        })),
-        suggestions: [
-          'Review the relevant code sections listed above.',
-          'Consider how changes would affect dependent bundles.',
-          'Use semantic search to explore related patterns.'
-        ]
-      };
-
-      await this.logInteraction('agent', `Discussion: ${userInput}`, { response });
-
-      return response;
-    } catch (error) {
-      throw new Error(`Discussion failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Organize Mode: Setup and maintenance of project organization
-   */
-  async organizeProject(options = {}) {
-    const { activity = 'detect', autoDetect = true, force = false } = options;
-
-    try {
-      await this.logInteraction('agent', `Organizing project: ${activity}`);
-
-      const overview = await this.getCodebaseOverview();
-      const bundles = await this.analyzeBundles('all');
-
-      const response = {
-        activity,
-        overview,
-        bundles: bundles.map(b => ({
-          name: b.name,
-          fileCount: b.fileCount,
-          purpose: b.purpose
-        })),
-        recommendations: [
-          'Review bundle organization for coverage gaps.',
-          'Check .cntxignore for missing exclusion patterns.',
-          'Run semantic analysis to identify uncategorized code.'
-        ]
-      };
-
-      await this.logInteraction('agent', `Organization complete for activity: ${activity}`, { response });
-
-      return response;
-    } catch (error) {
-      throw new Error(`Organization failed: ${error.message}`);
-    }
-  }
-
-  async generateContextualAnswer(question, results, includeCode) {
+  async generateContextualAnswer(question: string, results: any, includeCode: boolean) {
     let response = `Based on the codebase analysis:\n\n`;
     if (results.chunks.length > 0) {
       const top = results.chunks[0];

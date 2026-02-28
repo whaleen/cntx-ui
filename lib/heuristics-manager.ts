@@ -3,10 +3,47 @@
  * Manages configuration-based code categorization logic
  */
 
-import { readFileSync, existsSync, watchFile } from 'fs'
+import { readFileSync, writeFileSync, existsSync, watchFile } from 'fs'
 import { join } from 'path'
 
+export interface HeuristicPattern {
+  conditions: string[];
+  purpose: string;
+  confidence: number;
+}
+
+export interface BundleHeuristic {
+  conditions: string[];
+  bundle: string;
+  confidence: number;
+  subPatterns?: Record<string, BundleHeuristic>;
+}
+
+export interface HeuristicsConfig {
+  version: string;
+  purposeHeuristics: {
+    patterns: Record<string, HeuristicPattern>;
+    fallback: { purpose: string; confidence: number };
+  };
+  bundleHeuristics: {
+    patterns: Record<string, BundleHeuristic>;
+    fallback: {
+      webFallback?: { conditions: string[]; bundle: string; confidence: number };
+      defaultFallback?: { bundles: string[]; confidence: number };
+    };
+  };
+  semanticTypeMapping: {
+    clusters: Record<string, { types: string[]; clusterId: number }>;
+  };
+}
+
 export default class HeuristicsManager {
+  configPath: string;
+  config: HeuristicsConfig | null;
+  cache: Map<string, any>;
+  isWatching: boolean;
+  lastLoaded: number | null;
+
   constructor(configPath = './heuristics-config.json') {
     this.configPath = configPath
     this.config = null
@@ -27,7 +64,7 @@ export default class HeuristicsManager {
       }
 
       const configContent = readFileSync(this.configPath, 'utf8')
-      const newConfig = JSON.parse(configContent)
+      const newConfig = JSON.parse(configContent) as HeuristicsConfig
       
       // Validate config structure
       this.validateConfig(newConfig)
@@ -42,7 +79,7 @@ export default class HeuristicsManager {
       }
       
       console.log('✅ Heuristics configuration loaded successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to load heuristics config:', error.message)
       console.log('📦 Falling back to hardcoded heuristics')
       this.config = this.getFallbackConfig()
@@ -52,11 +89,11 @@ export default class HeuristicsManager {
   /**
    * Validate heuristics configuration structure
    */
-  validateConfig(config) {
-    const required = ['purposeHeuristics', 'bundleHeuristics', 'semanticTypeMapping']
+  validateConfig(config: HeuristicsConfig) {
+    const required = ['purposeHeuristics', 'bundleHeuristics', 'semanticTypeMapping'] as const
     
     for (const field of required) {
-      if (!config[field]) {
+      if (!(config as any)[field]) {
         throw new Error(`Missing required field: ${field}`)
       }
     }
@@ -91,27 +128,24 @@ export default class HeuristicsManager {
   /**
    * Get configuration, loading if necessary
    */
-  getConfig() {
+  getConfig(): HeuristicsConfig {
     if (!this.config) {
       this.loadConfig()
     }
-    return this.config
+    return this.config!
   }
 
   /**
    * Determine function purpose using configured heuristics
    */
-  determinePurpose(func) {
+  determinePurpose(func: any): string {
     const config = this.getConfig();
-    const name = func.name.toLowerCase();
+    const name = (func.name || '').toLowerCase();
     const pathParts = func.pathParts || [];
     
-    // console.log(`🔍 Determining purpose for: ${func.name} in ${pathParts.join('/')}`);
-
     // Check each purpose pattern
     for (const [patternName, pattern] of Object.entries(config.purposeHeuristics.patterns)) {
       if (this.evaluateConditions(pattern.conditions, { func, name, pathParts })) {
-        // console.log(`  ✅ Matched pattern: ${patternName} -> ${pattern.purpose}`);
         return pattern.purpose;
       }
     }
@@ -123,11 +157,11 @@ export default class HeuristicsManager {
   /**
    * Infer business domains (e.g. auth, editing, file-mgmt)
    */
-  inferBusinessDomains(func) {
-    const domains = new Set();
-    const name = func.name.toLowerCase();
+  inferBusinessDomains(func: any): string[] {
+    const domains = new Set<string>();
+    const name = (func.name || '').toLowerCase();
     const path = (func.pathParts || []).join('/').toLowerCase();
-    const imports = (func.includes?.imports || []).filter(i => typeof i === 'string');
+    const imports = (func.includes?.imports || []).filter((i: any) => typeof i === 'string') as string[];
 
     // Path-based domains
     if (path.includes('auth')) domains.add('authentication');
@@ -150,9 +184,9 @@ export default class HeuristicsManager {
   /**
    * Infer technical patterns (e.g. hooks, async-io, event-handlers)
    */
-  inferTechnicalPatterns(func) {
-    const patterns = new Set();
-    const name = func.name.toLowerCase();
+  inferTechnicalPatterns(func: any): string[] {
+    const patterns = new Set<string>();
+    const name = (func.name || '').toLowerCase();
     const code = func.code || '';
 
     if (name.startsWith('use')) patterns.add('react-hooks');
@@ -167,11 +201,11 @@ export default class HeuristicsManager {
   /**
    * Suggest bundles for file using configured heuristics
    */
-  suggestBundlesForFile(filePath) {
+  suggestBundlesForFile(filePath: string): string[] {
     const config = this.getConfig()
     const fileName = filePath.toLowerCase()
     const pathParts = fileName.split('/')
-    const suggestions = []
+    const suggestions: string[] = []
     
     // Check each bundle pattern
     for (const [patternName, pattern] of Object.entries(config.bundleHeuristics.patterns)) {
@@ -206,9 +240,9 @@ export default class HeuristicsManager {
   /**
    * Get semantic type cluster mapping
    */
-  getSemanticTypeMapping() {
+  getSemanticTypeMapping(): Record<string, number> {
     const config = this.getConfig()
-    const mapping = {}
+    const mapping: Record<string, number> = {}
     
     for (const [clusterName, cluster] of Object.entries(config.semanticTypeMapping.clusters)) {
       for (const type of cluster.types) {
@@ -222,17 +256,15 @@ export default class HeuristicsManager {
   /**
    * Evaluate condition strings against context
    */
-  evaluateConditions(conditions, context) {
-    if (!Array.isArray(conditions)) {
-      conditions = [conditions]
-    }
+  evaluateConditions(conditions: string | string[], context: any): boolean {
+    const conds = Array.isArray(conditions) ? conditions : [conditions]
     
     // For purpose heuristics, we generally want high precision, so use AND logic 
     // if there are multiple conditions
-    const needsAndLogic = conditions.length > 1 || this.requiresAndLogic(conditions)
+    const needsAndLogic = conds.length > 1 || this.requiresAndLogic(conds)
     
     if (needsAndLogic) {
-      return conditions.every(condition => {
+      return conds.every(condition => {
         try {
           return this.evaluateCondition(condition, context)
         } catch (error) {
@@ -241,7 +273,7 @@ export default class HeuristicsManager {
         }
       })
     } else {
-      return conditions.some(condition => {
+      return conds.some(condition => {
         try {
           return this.evaluateCondition(condition, context)
         } catch (error) {
@@ -255,7 +287,7 @@ export default class HeuristicsManager {
   /**
    * Determine if conditions require AND logic vs OR logic
    */
-  requiresAndLogic(conditions) {
+  requiresAndLogic(conditions: string[]): boolean {
     // React hook pattern specifically needs AND logic
     if (conditions.length === 2 && 
         conditions.some(c => c.includes('name.startsWith')) && 
@@ -277,7 +309,7 @@ export default class HeuristicsManager {
   /**
    * Evaluate a single condition
    */
-  evaluateCondition(condition, context) {
+  evaluateCondition(condition: string, context: any): boolean {
     const { func, name, fileName, filePath, pathParts } = context
     
     // Handle function type conditions
@@ -329,10 +361,10 @@ export default class HeuristicsManager {
     // New: Check imports in the chunk context
     if (condition.includes('chunk.imports.includes(')) {
       const importMatch = condition.match(/chunk\.imports\.includes\(['"]([^'"]+)['"]\)/)
-      if (importMatch && func.includes?.imports) {
+      if (importMatch && func?.includes?.imports) {
         return func.includes.imports
-          .filter(i => typeof i === 'string')
-          .some(imp => imp.includes(importMatch[1]))
+          .filter((i: any) => typeof i === 'string')
+          .some((imp: string) => imp.includes(importMatch[1]))
       }
     }
 
@@ -350,7 +382,7 @@ export default class HeuristicsManager {
   /**
    * Fallback configuration for when config file is unavailable
    */
-  getFallbackConfig() {
+  getFallbackConfig(): HeuristicsConfig {
     return {
       version: "1.0.0",
       purposeHeuristics: {
@@ -496,7 +528,7 @@ export default class HeuristicsManager {
   /**
    * Update configuration (for API endpoints) and persist to disk
    */
-  async updateConfig(newConfig) {
+  async updateConfig(newConfig: HeuristicsConfig) {
     try {
       this.validateConfig(newConfig)
       
@@ -509,7 +541,7 @@ export default class HeuristicsManager {
       
       console.log('📝 Heuristics configuration updated and saved to disk')
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to update heuristics config:', error.message)
       throw error
     }
