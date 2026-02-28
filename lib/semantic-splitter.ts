@@ -10,6 +10,9 @@ import Parser from 'tree-sitter'
 import JavaScript from 'tree-sitter-javascript'
 import TypeScript from 'tree-sitter-typescript'
 import Rust from 'tree-sitter-rust'
+import Json from 'tree-sitter-json'
+import Css from 'tree-sitter-css'
+import Html from 'tree-sitter-html'
 import HeuristicsManager from './heuristics-manager.js'
 import { SemanticChunk } from './database-manager.js'
 
@@ -21,6 +24,7 @@ export interface FunctionNode {
   code: string;
   isExported: boolean;
   isAsync: boolean;
+  category: 'function' | 'structure';
 }
 
 export interface TypeNode {
@@ -37,16 +41,18 @@ export default class SemanticSplitter {
     maxChunkSize: number;
     includeContext: boolean;
     minFunctionSize: number;
+    minStructureSize: number;
   };
   parsers: Record<string, Parser>;
   heuristicsManager: HeuristicsManager;
   bundleConfig: any;
 
-  constructor(options: { maxChunkSize?: number, includeContext?: boolean, minFunctionSize?: number } = {}) {
+  constructor(options: { maxChunkSize?: number, includeContext?: boolean, minFunctionSize?: number, minStructureSize?: number } = {}) {
     this.options = {
       maxChunkSize: 3000,       // Max chars per chunk
       includeContext: true,     // Include imports/types needed
       minFunctionSize: 40,      // Skip tiny functions
+      minStructureSize: 20,     // Skip tiny structures
       ...options
     }
     
@@ -55,12 +61,18 @@ export default class SemanticSplitter {
       javascript: new Parser(),
       typescript: new Parser(),
       tsx: new Parser(),
-      rust: new Parser()
+      rust: new Parser(),
+      json: new Parser(),
+      css: new Parser(),
+      html: new Parser()
     }
     this.parsers.javascript.setLanguage(JavaScript)
     this.parsers.typescript.setLanguage(TypeScript.typescript)
     this.parsers.tsx.setLanguage(TypeScript.tsx)
     this.parsers.rust.setLanguage(Rust)
+    this.parsers.json.setLanguage(Json)
+    this.parsers.css.setLanguage(Css)
+    this.parsers.html.setLanguage(Html)
 
     this.heuristicsManager = new HeuristicsManager()
   }
@@ -68,6 +80,10 @@ export default class SemanticSplitter {
   getParser(filePath: string): Parser {
     const ext = extname(filePath)
     switch (ext) {
+      case '.json': return this.parsers.json
+      case '.css': return this.parsers.css
+      case '.scss': return this.parsers.css
+      case '.html': return this.parsers.html
       case '.jsx': return this.parsers.javascript
       case '.ts': return this.parsers.typescript
       case '.tsx': return this.parsers.tsx
@@ -117,15 +133,25 @@ export default class SemanticSplitter {
     const parser = this.getParser(relativePath)
     const tree = parser.parse(content)
     const root = tree.rootNode
+    const ext = extname(relativePath).toLowerCase()
     
     const elements = {
       functions: [] as FunctionNode[],
       types: [] as TypeNode[],
-      imports: this.extractImports(root, content, relativePath)
+      imports: [] as any[]
     }
 
-    // Traverse AST for functions and types
-    this.traverse(root, content, relativePath, elements)
+    if (['.js', '.jsx', '.ts', '.tsx', '.rs'].includes(ext)) {
+      elements.imports = this.extractImports(root, content, relativePath)
+      // Traverse AST for functions and types
+      this.traverse(root, content, relativePath, elements)
+    } else if (ext === '.json') {
+      this.extractJsonStructures(root, content, relativePath, elements)
+    } else if (ext === '.css' || ext === '.scss') {
+      this.extractCssStructures(root, content, relativePath, elements)
+    } else if (ext === '.html') {
+      this.extractHtmlStructures(root, content, relativePath, elements)
+    }
 
     // Create chunks from elements
     return this.createChunks(elements, content, relativePath)
@@ -216,8 +242,97 @@ export default class SemanticSplitter {
       startLine: node.startPosition.row + 1,
       code,
       isExported: this.isExported(node),
-      isAsync: code.includes('async')
+      isAsync: code.includes('async'),
+      category: 'function'
     }
+  }
+
+  mapStructureNode(name: string, node: Parser.SyntaxNode, content: string, filePath: string): FunctionNode {
+    return {
+      name,
+      type: node.type,
+      filePath,
+      startLine: node.startPosition.row + 1,
+      code: content.slice(node.startIndex, node.endIndex),
+      isExported: false,
+      isAsync: false,
+      category: 'structure'
+    }
+  }
+
+  extractJsonStructures(root: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {
+    const rootNode = root.namedChild(0)
+    if (!rootNode) return
+
+    if (rootNode.type === 'object') {
+      for (let i = 0; i < rootNode.namedChildCount; i++) {
+        const child = rootNode.namedChild(i)
+        if (child && child.type === 'pair') {
+          const keyNode = child.childForFieldName('key') || child.namedChild(0)
+          const name = keyNode ? content.slice(keyNode.startIndex, keyNode.endIndex).replace(/['"]/g, '') : 'pair'
+          const structure = this.mapStructureNode(name, child, content, filePath)
+          if (structure.code.length >= this.options.minStructureSize) {
+            elements.functions.push(structure)
+          }
+        }
+      }
+    } else if (rootNode.type === 'array') {
+      for (let i = 0; i < rootNode.namedChildCount; i++) {
+        const child = rootNode.namedChild(i)
+        if (child) {
+          const structure = this.mapStructureNode(`item_${i + 1}`, child, content, filePath)
+          if (structure.code.length >= this.options.minStructureSize) {
+            elements.functions.push(structure)
+          }
+        }
+      }
+    }
+  }
+
+  extractCssStructures(root: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {
+    for (let i = 0; i < root.namedChildCount; i++) {
+      const node = root.namedChild(i)
+      if (!node) continue
+      if (node.type === 'rule_set' || node.type === 'at_rule') {
+        const name = this.getCssRuleName(node, content)
+        const structure = this.mapStructureNode(name, node, content, filePath)
+        if (structure.code.length >= this.options.minStructureSize) {
+          elements.functions.push(structure)
+        }
+      }
+    }
+  }
+
+  getCssRuleName(node: Parser.SyntaxNode, content: string) {
+    const selectorsNode = node.childForFieldName('selectors') || node.namedChild(0)
+    if (selectorsNode) {
+      return content.slice(selectorsNode.startIndex, selectorsNode.endIndex).trim()
+    }
+    const code = content.slice(node.startIndex, node.endIndex)
+    return code.split('{')[0].trim() || 'rule'
+  }
+
+  extractHtmlStructures(root: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {
+    for (let i = 0; i < root.namedChildCount; i++) {
+      const node = root.namedChild(i)
+      if (!node) continue
+      if (node.type === 'element' || node.type === 'script_element' || node.type === 'style_element') {
+        const name = this.getHtmlElementName(node, content)
+        const structure = this.mapStructureNode(name, node, content, filePath)
+        if (structure.code.length >= this.options.minStructureSize) {
+          elements.functions.push(structure)
+        }
+      }
+    }
+  }
+
+  getHtmlElementName(node: Parser.SyntaxNode, content: string) {
+    const startTag = node.childForFieldName('start_tag') || node.namedChild(0)
+    const tagNameNode = startTag?.childForFieldName('tag_name') || startTag?.namedChild(0)
+    if (tagNameNode) {
+      return content.slice(tagNameNode.startIndex, tagNameNode.endIndex)
+    }
+    return node.type
   }
 
   mapTypeNode(node: Parser.SyntaxNode, content: string, filePath: string): TypeNode | null {
@@ -298,7 +413,7 @@ export default class SemanticSplitter {
         id: `${filePath}:${func.name}:${func.startLine}`,
         name: func.name,
         filePath,
-        type: 'function',
+        type: func.category === 'structure' ? 'structure' : 'function',
         subtype: func.type,
         code: chunkCode,
         startLine: func.startLine,
