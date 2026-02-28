@@ -32,7 +32,7 @@ async function main() {
                 await initConfig();
                 break;
             case 'mcp':
-                await startServer({ withMcp: true, skipFileWatcher: true, skipBundleGeneration: true });
+                await startServer({ withMcp: true, skipFileWatcher: true });
                 break;
             case 'bundle':
                 const bundleName = args[1] || 'master';

@@ -40,7 +40,7 @@ async function main() {
         break;
 
       case 'mcp':
-        await startServer({ withMcp: true, skipFileWatcher: true, skipBundleGeneration: true });
+        await startServer({ withMcp: true, skipFileWatcher: true });
         break;
 
       case 'bundle':
