@@ -652,8 +652,6 @@ export async function initConfig(cwd = process.cwd()) {
   }
 
   console.log('Configuration initialized');
-  console.log('');
-  console.log('Run cntx-ui to start the server, then open http://localhost:3333');
 }
 
 export async function getStatus() {
