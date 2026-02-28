@@ -109,6 +109,10 @@ export default class APIRouter {
         return await this.handlePostVectorDbSearch(req, res);
       }
 
+      if (pathname === '/api/vector-db/projection' && method === 'GET') {
+        return await this.handleGetVectorDbProjection(req, res);
+      }
+
       if (pathname === '/api/vector-db/network' && method === 'GET') {
         return await this.handleGetVectorDbNetwork(req, res);
       }
@@ -344,8 +348,14 @@ export default class APIRouter {
 
   async handlePostSemanticSearch(req: IncomingMessage, res: ServerResponse) {
     const body = await this.getRequestBody(req);
-    const { query, limit = 20 } = JSON.parse(body);
-    const results = await this.vectorStore.search(query, { limit });
+    const { query, question, limit = 20 } = JSON.parse(body);
+    const searchTerm = query || question;
+    
+    if (!searchTerm) {
+      return this.sendError(res, 400, 'Missing search term (query or question)');
+    }
+
+    const results = await this.vectorStore.search(searchTerm, { limit });
     this.sendResponse(res, 200, { results });
   }
 
@@ -374,6 +384,115 @@ export default class APIRouter {
     const { query, limit = 10 } = JSON.parse(body);
     const results = await this.vectorStore.search(query, { limit });
     this.sendResponse(res, 200, results);
+  }
+
+  async handleGetVectorDbProjection(req: IncomingMessage, res: ServerResponse) {
+    const dbManager = this.configManager.dbManager;
+    const embeddingCountRow = dbManager.db.prepare('SELECT COUNT(*) as count FROM vector_embeddings').get() as { count: number };
+    const currentEmbeddingCount = embeddingCountRow.count;
+
+    if (currentEmbeddingCount === 0) {
+      return this.sendResponse(res, 200, {
+        points: [],
+        meta: { totalPoints: 0, embeddingCount: 0, computedAt: null, cached: false }
+      });
+    }
+
+    // Check cache freshness
+    const cachedCount = dbManager.getProjectionEmbeddingCount();
+    if (cachedCount === currentEmbeddingCount) {
+      const cached = dbManager.getProjections();
+      if (cached) {
+        // Join with chunk metadata
+        const chunkMap = new Map<string, any>();
+        const chunks = dbManager.db.prepare('SELECT * FROM semantic_chunks').all() as any[];
+        for (const c of chunks) {
+          const mapped = dbManager.mapChunkRow(c);
+          chunkMap.set(mapped.id, mapped);
+        }
+
+        const points = cached.map(p => {
+          const chunk = chunkMap.get(p.chunkId);
+          return {
+            id: p.chunkId,
+            x: p.x,
+            y: p.y,
+            name: chunk?.name || 'unknown',
+            filePath: chunk?.filePath || '',
+            purpose: chunk?.purpose || 'unknown',
+            semanticType: chunk?.subtype || chunk?.type || 'unknown',
+            complexity: chunk?.complexity?.score || 0,
+            directory: chunk?.filePath ? chunk.filePath.split('/').slice(0, -1).join('/') || '.' : '.'
+          };
+        });
+
+        return this.sendResponse(res, 200, {
+          points,
+          meta: { totalPoints: points.length, embeddingCount: currentEmbeddingCount, computedAt: new Date().toISOString(), cached: true }
+        });
+      }
+    }
+
+    // Compute fresh UMAP projection
+    const rows = dbManager.db.prepare(`
+      SELECT ve.chunk_id, ve.embedding, sc.name, sc.file_path, sc.type, sc.subtype, sc.complexity_score, sc.purpose
+      FROM vector_embeddings ve
+      JOIN semantic_chunks sc ON ve.chunk_id = sc.id
+    `).all() as any[];
+
+    if (rows.length < 2) {
+      return this.sendResponse(res, 200, {
+        points: rows.map((r: any) => ({
+          id: r.chunk_id, x: 0, y: 0,
+          name: r.name, filePath: r.file_path, purpose: r.purpose || 'unknown',
+          semanticType: r.subtype || r.type || 'unknown', complexity: r.complexity_score || 0,
+          directory: r.file_path ? r.file_path.split('/').slice(0, -1).join('/') || '.' : '.'
+        })),
+        meta: { totalPoints: rows.length, embeddingCount: currentEmbeddingCount, computedAt: new Date().toISOString(), cached: false }
+      });
+    }
+
+    // Extract embeddings as number[][]
+    const embeddings: number[][] = rows.map((r: any) => {
+      const buf = r.embedding as Buffer;
+      const floats = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+      return Array.from(floats);
+    });
+
+    // Run UMAP
+    const { UMAP } = await import('umap-js');
+    const umap = new UMAP({
+      nNeighbors: Math.min(15, rows.length - 1),
+      minDist: 0.1,
+      nComponents: 2
+    });
+    const projected = umap.fit(embeddings);
+
+    // Save to cache
+    const projections = rows.map((r: any, i: number) => ({
+      chunkId: r.chunk_id,
+      x: projected[i][0],
+      y: projected[i][1]
+    }));
+    dbManager.saveProjections(projections, currentEmbeddingCount);
+
+    // Build response
+    const points = rows.map((r: any, i: number) => ({
+      id: r.chunk_id,
+      x: projected[i][0],
+      y: projected[i][1],
+      name: r.name,
+      filePath: r.file_path,
+      purpose: r.purpose || 'unknown',
+      semanticType: r.subtype || r.type || 'unknown',
+      complexity: r.complexity_score || 0,
+      directory: r.file_path ? r.file_path.split('/').slice(0, -1).join('/') || '.' : '.'
+    }));
+
+    this.sendResponse(res, 200, {
+      points,
+      meta: { totalPoints: points.length, embeddingCount: currentEmbeddingCount, computedAt: new Date().toISOString(), cached: false }
+    });
   }
 
   async handleGetVectorDbNetwork(req: IncomingMessage, res: ServerResponse) {
