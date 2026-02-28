@@ -13,7 +13,6 @@ import {
   HelpCircle,
   Settings,
   X,
-  Activity,
   PanelLeft,
   SquaresUnite,
   DatabaseZap,
@@ -21,7 +20,6 @@ import {
 } from 'lucide-react'
 import { ThemeToggle } from './components/theme-toggle'
 import { VectorVisualization } from './components/VectorVisualization'
-import { Activities } from './components/Activities'
 import { SystemSettings } from './components/SystemSettings'
 import { Documentation } from './components/Documentation'
 import { DatabaseViewer } from './components/DatabaseViewer'
@@ -48,11 +46,6 @@ const navigationItems = [
     id: 'database',
     label: 'SQLite Database',
     icon: Database
-  },
-  {
-    id: 'activities',
-    label: 'Activities',
-    icon: Activity
   },
   {
     id: 'settings',
@@ -199,10 +192,6 @@ function App() {
             </div>
             <DatabaseViewer />
           </div>
-        )
-      case 'activities':
-        return (
-          <Activities />
         )
       case 'settings':
         return (

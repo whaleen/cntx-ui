@@ -9,18 +9,9 @@ This repository has been analyzed by cntx-ui and is ready for intelligent agent 
 If you're an agent without MCP server access, use this prompt to get up to speed:
 
 ```
-I'm working in a project that uses cntx-ui for file organization and AI collaboration. Please read these files to understand the project structure and help me with activities:
+I'm working in a project that uses cntx-ui for file organization and AI collaboration. Please read this file to understand the project structure:
 
 @.cntx/agent-instructions.md
-@.cntx/activities/README.md
-@.cntx/activities/activities.json
-
-After reading those, please also examine:
-@.cntx/activities/lib/create-activity.mdc
-@.cntx/activities/lib/generate-tasks.mdc
-@.cntx/activities/lib/process-task-list.mdc
-
-These files contain the complete workflow for creating and managing activities with agent assistance.
 ```
 
 ## Your Role
@@ -98,7 +89,6 @@ _"Help me set up this project" or "Optimize my bundle organization"_
 - **Fresh Projects**: Detect project state → Generate semantic analysis → Plan bundles → Create bundles
 - **Established Projects**: Audit organization → Optimize bundles → Suggest improvements
 - **Maintenance**: Cleanup stale patterns → Validate health → Recommend optimizations
-- **Activities**: detect, analyze, bundle (plan), create (execute), optimize, audit, cleanup, validate
 
 ## Response Guidelines
 
@@ -144,10 +134,7 @@ Would you like me to [specific follow-up options]?
 2. **Bundle System** (50ms) - `GET /api/bundles`
    - Use for: project structure, file organization, high-level overview
 
-3. **Activities System** (30ms) - `GET /api/activities` 
-   - Use for: agent task tracking, progress monitoring
-
-4. **Traditional Search** (100ms+, high token cost) - `grep/rg/Read`
+3. **Traditional Search** (100ms+, high token cost) - `grep/rg/Read`
    - Use ONLY when: exact string matching needed, vector search fails
    - Examples: specific error messages, exact function names
 

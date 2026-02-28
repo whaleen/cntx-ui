@@ -59,21 +59,10 @@ MCP Integration:
 Agent Collaboration:
   To get an external agent up to speed with your project, use this prompt:
 
-  "I'm working in a project that uses cntx-ui for file organization and AI 
-  collaboration. Please read these files to understand the project structure 
-  and help me with activities:
+  "I'm working in a project that uses cntx-ui for file organization and AI
+  collaboration. Please read this file to understand the project structure:
 
-  @.cntx/agent-instructions.md
-  @.cntx/activities/README.md  
-  @.cntx/activities/activities.json
-
-  After reading those, please also examine:
-  @.cntx/activities/lib/create-activity.mdc
-  @.cntx/activities/lib/generate-tasks.mdc
-  @.cntx/activities/lib/process-task-list.mdc
-
-  These files contain the complete workflow for creating and managing 
-  activities with agent assistance."
+  @.cntx/agent-instructions.md"
 
 Repository: ${packageJson.repository.url}
 Author: ${packageJson.author}

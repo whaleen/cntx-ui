@@ -59,7 +59,6 @@ cntx-ui/
 │   ├── src/lib/                  # Client-side utilities
 │   └── dist/                     # Built static assets
 ├── .cntx/                        # Configuration and cache
-│   ├── activities/               # Agent task definitions
 │   ├── agent-rules/              # Modular agent instructions
 │   ├── bundle-states.json       # Bundle configuration and metadata
 │   └── semantic-cache.json      # Analysis cache

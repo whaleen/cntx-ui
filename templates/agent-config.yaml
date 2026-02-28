@@ -23,11 +23,6 @@ capabilities:
     required: true
     endpoint_check: "/api/bundles"
     
-  activities_system:
-    file: "capabilities/activities-system.md"
-    required: false
-    endpoint_check: "/api/activities"
-
 # Project-specific context
 project_context:
   - "project-specific/architecture.md"

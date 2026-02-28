@@ -89,13 +89,6 @@ export class CntxServer {
       lastSemanticAnalysis: this.lastSemanticAnalysis
     };
 
-    // Create activity manager placeholder
-    this.activityManager = {
-      loadActivities: () => this.loadActivities(),
-      executeActivity: (id) => this.executeActivity(id),
-      stopActivity: (id) => this.stopActivity(id)
-    };
-
     // Initialize API router with all managers
     this.apiRouter = new APIRouter(
       this,
@@ -103,8 +96,7 @@ export class CntxServer {
       this.bundleManager,
       this.fileSystemManager,
       this.semanticAnalysisManager,
-      this.vectorStore,
-      this.activityManager
+      this.vectorStore
     );
 
     // Add references for cross-module communication
@@ -532,116 +524,6 @@ export class CntxServer {
     this.lastSemanticAnalysis = null;
   }
 
-  // === Activity Management (Placeholder) ===
-
-  async loadActivities() {
-    try {
-      const activitiesPath = join(this.CWD, '.cntx', 'activities');
-      const activitiesJsonPath = join(activitiesPath, 'activities.json');
-
-      console.log('DEBUG: Looking for activities at:', activitiesJsonPath);
-      console.log('DEBUG: File exists:', fs.existsSync(activitiesJsonPath));
-      console.log('DEBUG: CWD is:', this.CWD);
-
-      if (!fs.existsSync(activitiesJsonPath)) {
-        console.log('Activities file not found, returning empty array');
-        return [];
-      }
-
-      const activitiesData = JSON.parse(fs.readFileSync(activitiesJsonPath, 'utf8'));
-
-      return activitiesData.map((activity, index) => {
-        // Extract the actual directory name from the references field
-        let activityId = activity.title.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        if (activity.references && activity.references.length > 0) {
-          // Extract directory name from path like ".cntx/activities/activities/refactor-js-to-ts/README.md"
-          const refPath = activity.references[0];
-          const pathParts = refPath.split('/');
-          if (pathParts.length >= 4) {
-            activityId = pathParts[3]; // activities/activities/{this-part}/README.md
-          }
-        }
-        const activityDir = join(activitiesPath, 'activities', activityId);
-
-        // Load markdown files
-        const files = {
-          readme: this.loadMarkdownFile(join(activityDir, 'README.md')),
-          progress: this.loadMarkdownFile(join(activityDir, 'progress.md')),
-          tasks: this.loadMarkdownFile(join(activityDir, 'tasks.md')),
-          notes: this.loadMarkdownFile(join(activityDir, 'notes.md'))
-        };
-
-        // Calculate progress from progress.md file
-        const progress = this.parseProgressFromMarkdown(files.progress);
-
-        return {
-          id: activityId,
-          name: activity.title,
-          description: activity.description,
-          status: activity.status === 'todo' ? 'pending' : activity.status,
-          priority: activity.tags?.includes('high') ? 'high' : activity.tags?.includes('low') ? 'low' : 'medium',
-          progress,
-          updatedAt: new Date().toISOString(),
-          category: activity.tags?.[0] || 'general',
-          files,
-          tags: activity.tags
-        };
-      });
-    } catch (error) {
-      console.error('Failed to load activities:', error);
-      return [];
-    }
-  }
-
-  loadMarkdownFile(filePath) {
-    try {
-      if (fs.existsSync(filePath)) {
-        return fs.readFileSync(filePath, 'utf8');
-      }
-      return 'No content available';
-    } catch (error) {
-      return `Error loading file: ${error.message}`;
-    }
-  }
-
-  parseProgressFromMarkdown(progressContent) {
-    try {
-      if (!progressContent || progressContent === 'No content available') {
-        return 0;
-      }
-
-      // Look for "Overall Completion: XX%" pattern
-      const overallMatch = progressContent.match(/(?:Overall Completion|Progress):\s*(\d+)%/i);
-      if (overallMatch) {
-        return parseInt(overallMatch[1], 10);
-      }
-
-      // Fallback: count completed tasks vs total tasks in checkbox format
-      const taskMatches = progressContent.match(/- \[([x✓✅\s])\]/gi);
-      if (taskMatches && taskMatches.length > 0) {
-        const completedTasks = taskMatches.filter(match =>
-          match.includes('[x]') || match.includes('[✓]') || match.includes('[✅]')
-        ).length;
-        return Math.round((completedTasks / taskMatches.length) * 100);
-      }
-
-      return 0;
-    } catch (error) {
-      console.error('Error parsing progress:', error);
-      return 0;
-    }
-  }
-
-  async executeActivity(activityId) {
-    // Placeholder - would execute specific activity
-    return { success: false, message: 'Activity execution not implemented' };
-  }
-
-  async stopActivity(activityId) {
-    // Placeholder - would stop running activity
-    return { success: false, message: 'Activity stopping not implemented' };
-  }
-
   // === MCP Server Integration ===
 
   startMCPServer() {
@@ -853,46 +735,6 @@ export async function initConfig(cwd = process.cwd()) {
     console.log('📁 Created agent-rules directory with templates');
   }
 
-  // Copy activities framework
-  const activitiesDir = join(server.CNTX_DIR, 'activities');
-  if (!existsSync(activitiesDir)) {
-    mkdirSync(activitiesDir, { recursive: true });
-  }
-
-  // Copy activities README
-  const activitiesReadmeSource = join(templateDir, 'activities', 'README.md');
-  const activitiesReadmeDest = join(activitiesDir, 'README.md');
-  
-  if (existsSync(activitiesReadmeSource) && !existsSync(activitiesReadmeDest)) {
-    copyFileSync(activitiesReadmeSource, activitiesReadmeDest);
-    console.log('📄 Created activities/README.md');
-  }
-
-  // Copy activities lib directory (MDC templates)
-  const activitiesLibSource = join(templateDir, 'activities', 'lib');
-  const activitiesLibDest = join(activitiesDir, 'lib');
-  
-  if (existsSync(activitiesLibSource) && !existsSync(activitiesLibDest)) {
-    cpSync(activitiesLibSource, activitiesLibDest, { recursive: true });
-    console.log('📁 Created activities/lib with MDC templates');
-  }
-
-  // Copy activities.json from templates
-  const activitiesJsonPath = join(activitiesDir, 'activities.json');
-  const templateActivitiesJsonPath = join(templateDir, 'activities', 'activities.json');
-  if (!existsSync(activitiesJsonPath) && existsSync(templateActivitiesJsonPath)) {
-    copyFileSync(templateActivitiesJsonPath, activitiesJsonPath);
-    console.log('📄 Created activities.json with bundle example activity');
-  }
-
-  // Copy example activity from templates
-  const activitiesDestDir = join(activitiesDir, 'activities');
-  const templateActivitiesDir = join(templateDir, 'activities', 'activities');
-  if (!existsSync(activitiesDestDir) && existsSync(templateActivitiesDir)) {
-    cpSync(templateActivitiesDir, activitiesDestDir, { recursive: true });
-    console.log('📁 Created example activity with templates');
-  }
-
   console.log('');
   console.log('🎉 cntx-ui initialized with full scaffolding!');
   console.log('');
@@ -900,7 +742,6 @@ export async function initConfig(cwd = process.cwd()) {
   console.log('  1️⃣  Start the server: cntx-ui watch');
   console.log('  2️⃣  Open web UI: http://localhost:3333');
   console.log('  3️⃣  Read .cntx/agent-instructions.md for AI integration');
-  console.log('  4️⃣  Explore .cntx/activities/README.md for project management');
   console.log('');
   console.log('💡 Pro tip: Use "cntx-ui status" to see your project overview');
 }

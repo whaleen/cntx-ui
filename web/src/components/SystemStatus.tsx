@@ -46,7 +46,6 @@ const API_ENDPOINTS: Omit<EndpointStatus, 'status' | 'responseTime' | 'error'>[]
   { path: '/api/vector-db/status', method: 'GET', description: 'Vector database status' },
   { path: '/api/cursor-rules', method: 'GET', description: 'Cursor rules configuration' },
   { path: '/api/claude-md', method: 'GET', description: 'Claude.md file content' },
-  { path: '/api/activities', method: 'GET', description: 'Available activities' },
   { path: '/api/mcp-status', method: 'GET', description: 'MCP server status' },
 ]
 
@@ -80,9 +79,6 @@ const MCP_TOOLS: Omit<MCPToolStatus, 'status' | 'error'>[] = [
   // File Operations
   { name: 'read_file', description: 'Read contents of a specific file with bundle context and metadata', group: 'File Operations' },
   { name: 'write_file', description: 'Write content to a file with validation and safety checks', group: 'File Operations' },
-
-  // Activities Management
-  { name: 'manage_activities', description: 'CRUD operations for project activities', group: 'Activities Management' },
 ]
 
 const fetchServerStatus = async (): Promise<ServerStatus> => {
@@ -243,10 +239,6 @@ export function SystemStatus() {
 
       if (endpoint.includes('/api/vector-db/status')) {
         return `${data.stats?.totalChunks || 0} chunks indexed with ${data.stats?.modelName || 'unknown model'}`
-      }
-
-      if (endpoint.includes('/api/activities')) {
-        return `${data.length || keys.length} activities found`
       }
 
       // Generic object formatting

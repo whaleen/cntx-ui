@@ -33,9 +33,3 @@ This document maps the **Model Context Protocol (MCP)** tools to their **HTTP AP
 | `read_file` | `GET /api/files/:path` | `path: string` | Read file with injected semantic metadata. |
 | `write_file` | `POST /api/files` | `path, content` | Write file with automatic backup. |
 
-## Activities
-
-| MCP Tool | HTTP Endpoint | Parameters | Description |
-| :--- | :--- | :--- | :--- |
-| `list_activities` | `GET /api/activities` | *None* | List all ongoing agent missions. |
-| `get_reasoning` | `GET /api/activities/:id/reasoning` | `id: string` | Recall agent interaction history for a task. |
