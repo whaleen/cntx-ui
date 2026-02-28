@@ -291,13 +291,32 @@ export class CntxServer {
       this.apiRouter.handleRequest(req, res, url);
     });
 
-    this.webSocketManager.initialize(server);
+    return new Promise((resolve, reject) => {
+      let currentPort = port;
+      const maxRetries = 10;
+      let retries = 0;
 
-    return new Promise((resolve) => {
-      server.listen(port, host, () => {
-        this.log(`🚀 cntx-ui server running at http://${host}:${port}`);
-        resolve(server);
+      const tryListen = (p: number) => {
+        server.listen(p, host, () => {
+          this.webSocketManager.initialize(server);
+          this.log(`🚀 cntx-ui server running at http://${host}:${p}`);
+          resolve(server);
+        });
+      };
+
+      server.on('error', (e: any) => {
+        if (e.code === 'EADDRINUSE' && retries < maxRetries) {
+          retries++;
+          const failedPort = currentPort;
+          currentPort++;
+          this.log(`⚠️  Port ${failedPort} busy, trying ${currentPort}...`);
+          tryListen(currentPort);
+        } else {
+          reject(e);
+        }
       });
+
+      tryListen(currentPort);
     });
   }
 

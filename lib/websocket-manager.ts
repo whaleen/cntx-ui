@@ -30,6 +30,12 @@ export default class WebSocketManager {
       this.handleConnection(ws);
     });
 
+    this.wss.on('error', (error: any) => {
+      if (this.verbose) {
+        console.error('🔌 WebSocket server error:', error.message);
+      }
+    });
+
     if (this.verbose) {
       console.log('🔌 WebSocket server initialized');
     }
