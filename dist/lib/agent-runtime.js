@@ -50,6 +50,12 @@ export class AgentRuntime {
                 return `### \`${t.name}\`\n${t.description}\n${params.length > 0 ? '**Parameters:**\n- ' + params.join('\n- ') : '*No parameters required*'}\n`;
             }).join('\n');
         }
+        // Find TOOLS.md template
+        let toolsMdPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../templates/TOOLS.md');
+        if (!fs.existsSync(toolsMdPath)) {
+            // Fallback for dist/lib/ context
+            toolsMdPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../templates/TOOLS.md');
+        }
         const manifest = `# 🤖 Agent Handshake: ${overview.projectPath.split('/').pop()}
 
 ## Project Overview
@@ -70,7 +76,7 @@ ${toolsReference || '*(MCP Server not yet initialized, tools will appear here)*'
 ## 🛠 Complete Tool & API Reference
 Refer to the dynamic reference below for full parameter schemas and HTTP fallback endpoints.
 
-${fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../templates/TOOLS.md'), 'utf8')}
+${fs.existsSync(toolsMdPath) ? fs.readFileSync(toolsMdPath, 'utf8') : '*(Tools documentation missing)*'}
 
 ## Working Memory
 This agent is **stateful**. All interactions in this directory are logged to a persistent SQLite database (\`.cntx/bundles.db\`), allowing for context retention across sessions.

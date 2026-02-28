@@ -294,7 +294,11 @@ export async function initConfig(cwd = process.cwd()) {
         console.log('📄 Created .cntxignore with smart defaults');
     }
     console.log('⚙️ Basic configuration initialized');
-    const templateDir = join(__dirname, 'templates');
+    let templateDir = join(__dirname, 'templates');
+    if (!existsSync(templateDir)) {
+        // Fallback for dist/ context
+        templateDir = join(__dirname, '..', 'templates');
+    }
     // Copy agent configuration files
     const agentFiles = [
         'agent-config.yaml',
