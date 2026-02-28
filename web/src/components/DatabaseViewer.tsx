@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
-import { Database, Play, RefreshCw } from 'lucide-react';
+import { Database, Play, RefreshCw, Table, Fingerprint, BrainCircuit } from 'lucide-react';
 
 interface QueryResult {
   error?: string;
@@ -13,33 +13,39 @@ interface QueryResult {
 interface DatabaseInfo {
   path?: string;
   bundleCount?: number;
+  chunkCount?: number;
+  embeddingCount?: number;
+  sessionCount?: number;
   sizeFormatted?: string;
   error?: string;
 }
 
 export function DatabaseViewer() {
-  const [query, setQuery] = useState('SELECT name, file_count, size, generated_at FROM bundles ORDER BY name;');
+  const [query, setQuery] = useState('SELECT name, purpose, complexity_score FROM semantic_chunks ORDER BY complexity_score DESC LIMIT 10;');
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dbInfo, setDbInfo] = useState<DatabaseInfo | null>(null);
 
-  // Predefined useful queries
   const sampleQueries = [
     {
-      name: 'All Bundles',
-      sql: 'SELECT name, file_count, size, generated_at FROM bundles ORDER BY name;'
+      name: 'Top Chunks by Complexity',
+      sql: 'SELECT name, purpose, complexity_score, file_path FROM semantic_chunks ORDER BY complexity_score DESC LIMIT 10;'
     },
     {
-      name: 'Large Bundles',
-      sql: 'SELECT name, file_count, size FROM bundles WHERE file_count > 5 ORDER BY size DESC;'
+      name: 'Chunks by Purpose',
+      sql: 'SELECT purpose, COUNT(*) as count FROM semantic_chunks GROUP BY purpose ORDER BY count DESC;'
     },
     {
-      name: 'Recent Activity',
-      sql: 'SELECT name, generated_at FROM bundles WHERE generated_at IS NOT NULL ORDER BY generated_at DESC LIMIT 10;'
+      name: 'Agent Interaction History',
+      sql: 'SELECT role, content, timestamp FROM agent_memory ORDER BY timestamp DESC LIMIT 20;'
     },
     {
-      name: 'Bundle Statistics',
-      sql: 'SELECT COUNT(*) as total_bundles, SUM(file_count) as total_files, SUM(size) as total_size FROM bundles;'
+      name: 'Vector Embedding Stats',
+      sql: 'SELECT model_name, COUNT(*) as count FROM vector_embeddings GROUP BY model_name;'
+    },
+    {
+      name: 'Unassigned Chunks',
+      sql: "SELECT name, file_path FROM semantic_chunks WHERE purpose = 'Utility function' LIMIT 10;"
     }
   ];
 
@@ -53,24 +59,19 @@ export function DatabaseViewer() {
       const info = await response.json();
       setDbInfo(info);
     } catch (error) {
-      console.error('Failed to fetch database info:', error);
       setDbInfo({ error: 'Failed to load database info' });
     }
   };
 
   const executeQuery = async () => {
     if (!query.trim()) return;
-    
     setIsLoading(true);
     try {
       const response = await fetch('/api/database/query', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: query.trim() }),
       });
-
       const result = await response.json();
       setQueryResult(result);
     } catch (error) {
@@ -80,148 +81,82 @@ export function DatabaseViewer() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      executeQuery();
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* Database Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            SQLite Database
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {dbInfo ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="font-medium">Bundles:</span> {dbInfo.bundleCount || 0}
-              </div>
-              <div>
-                <span className="font-medium">Size:</span> {dbInfo.sizeFormatted || 'Unknown'}
-              </div>
-              <div className="col-span-2">
-                <span className="font-medium">Path:</span> 
-                <span className="font-mono text-xs ml-2">{dbInfo.path || 'Unknown'}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-muted-foreground">Loading database info...</div>
-          )}
-        </CardContent>
-      </Card>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-thin tracking-tight flex items-center gap-2">
+            <Database className="w-4 h-4 text-vesper-accent" />
+            Persistent Intelligence Explorer
+          </h1>
+          <p className="text-xs text-muted-foreground font-thin">Querying the project's persistent brain</p>
+        </div>
+        {dbInfo && (
+          <div className="flex gap-2">
+            <Badge variant="outline" className="border-vesper font-thin text-[9px] uppercase tracking-widest">
+              {dbInfo.chunkCount} Chunks
+            </Badge>
+            <Badge variant="outline" className="border-vesper font-thin text-[9px] uppercase tracking-widest">
+              {dbInfo.embeddingCount} Vectors
+            </Badge>
+            <Badge variant="outline" className="border-vesper font-thin text-[9px] uppercase tracking-widest">
+              {dbInfo.sizeFormatted}
+            </Badge>
+          </div>
+        )}
+      </header>
 
-      {/* Query Interface */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>SQL Query</CardTitle>
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="border-vesper bg-vesper-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xs font-thin uppercase tracking-widest color-vesper-muted">SQL Interface</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <Textarea
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Enter your SQL query..."
-                className="font-mono text-sm min-h-[120px]"
+                className="font-mono text-xs bg-black/30 border-vesper min-h-[150px] color-vesper-fg"
               />
               <div className="flex justify-between items-center">
-                <div className="text-xs text-muted-foreground">
-                  Press Ctrl/Cmd + Enter to execute
-                </div>
-                <Button 
-                  onClick={executeQuery} 
-                  disabled={isLoading || !query.trim()}
-                  className="flex items-center gap-2"
-                >
-                  {isLoading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Play className="h-4 w-4" />
+                <span className="text-[10px] color-vesper-muted italic">⌘ + Enter to execute</span>
+                <Button onClick={executeQuery} disabled={isLoading} size="sm" className="bg-vesper-accent text-black hover:opacity-90 h-8">
+                  {isLoading ? <RefreshCw className="w-3 h-3 animate-spin mr-2" /> : <Play className="w-3 h-3 mr-2" />}
+                  Execute Query
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {queryResult && (
+            <Card className="border-vesper bg-vesper-card overflow-hidden">
+              <CardHeader className="pb-3 border-b border-vesper">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs font-thin uppercase tracking-widest color-vesper-muted">Results</CardTitle>
+                  {queryResult.results && (
+                    <Badge variant="outline" className="text-[9px] border-vesper">{queryResult.results.length} rows</Badge>
                   )}
-                  Execute
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Sample Queries</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {sampleQueries.map((sample, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-left h-auto p-3"
-                  onClick={() => setQuery(sample.sql)}
-                >
-                  <div>
-                    <div className="font-medium">{sample.name}</div>
-                    <div className="text-xs text-muted-foreground mt-1 font-mono">
-                      {sample.sql.substring(0, 40)}...
-                    </div>
-                  </div>
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Query Results */}
-      {queryResult && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {queryResult.error ? (
-              <div className="text-red-500 font-mono text-sm bg-red-50 dark:bg-red-950/20 p-4 rounded">
-                Error: {queryResult.error}
-              </div>
-            ) : queryResult.results ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">
-                    {queryResult.results.length} rows
-                  </Badge>
                 </div>
-                
-                {queryResult.results.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-border text-sm">
+              </CardHeader>
+              <CardContent className="p-0">
+                {queryResult.error ? (
+                  <div className="p-4 text-xs font-mono text-red-400 bg-red-950/10">{queryResult.error}</div>
+                ) : queryResult.results && queryResult.results.length > 0 ? (
+                  <div className="overflow-auto max-h-[400px]">
+                    <table className="w-full border-collapse text-[11px]">
                       <thead>
-                        <tr className="bg-muted">
+                        <tr className="bg-black/40 text-left color-vesper-muted border-b border-vesper">
                           {Object.keys(queryResult.results[0]).map((key) => (
-                            <th key={key} className="border border-border p-2 text-left font-medium">
-                              {key}
-                            </th>
+                            <th key={key} className="p-2 font-thin uppercase tracking-tighter">{key}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {queryResult.results.map((row, index) => (
-                          <tr key={index} className="hover:bg-muted/50">
-                            {Object.values(row).map((value, cellIndex) => (
-                              <td key={cellIndex} className="border border-border p-2 font-mono text-xs">
-                                {value === null ? (
-                                  <span className="text-muted-foreground italic">null</span>
-                                ) : typeof value === 'string' && value.length > 50 ? (
-                                  <span title={value}>{value.substring(0, 47)}...</span>
-                                ) : (
-                                  String(value)
-                                )}
+                        {queryResult.results.map((row, i) => (
+                          <tr key={i} className="border-b border-vesper/30 hover:bg-white/5">
+                            {Object.values(row).map((val: any, j) => (
+                              <td key={j} className="p-2 color-vesper-fg font-mono max-w-[200px] truncate">
+                                {val === null ? <span className="opacity-30">null</span> : String(val)}
                               </td>
                             ))}
                           </tr>
@@ -230,15 +165,53 @@ export function DatabaseViewer() {
                     </table>
                   </div>
                 ) : (
-                  <div className="text-muted-foreground text-center py-8">
-                    Query executed successfully, but returned no results.
-                  </div>
+                  <div className="p-8 text-center text-xs color-vesper-muted italic">No results returned</div>
                 )}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <Card className="border-vesper bg-vesper-card">
+            <CardHeader>
+              <CardTitle className="text-xs font-thin uppercase tracking-widest color-vesper-muted flex items-center gap-2">
+                <Table className="w-3 h-3" />
+                Schema Explorer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {['semantic_chunks', 'vector_embeddings', 'agent_memory', 'agent_sessions', 'bundles'].map(table => (
+                <div key={table} className="flex items-center justify-between p-2 rounded bg-black/20 border border-vesper/50 group hover:border-vesper-accent cursor-pointer"
+                     onClick={() => setQuery(`SELECT * FROM ${table} LIMIT 10;`)}>
+                  <span className="text-[11px] font-mono color-vesper-fg">{table}</span>
+                  <Badge variant="outline" className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Select</Badge>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-vesper bg-vesper-card">
+            <CardHeader>
+              <CardTitle className="text-xs font-thin uppercase tracking-widest color-vesper-muted flex items-center gap-2">
+                <BrainCircuit className="w-3 h-3" />
+                Intelligence Queries
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {sampleQueries.map((sample, i) => (
+                <Button key={i} variant="ghost" className="w-full justify-start text-left h-auto p-2 hover:bg-white/5 border border-transparent hover:border-vesper"
+                        onClick={() => { setQuery(sample.sql); executeQuery(); }}>
+                  <div>
+                    <div className="text-[11px] color-vesper-accent font-bold">{sample.name}</div>
+                    <div className="text-[9px] color-vesper-muted truncate max-w-[180px]">{sample.sql}</div>
+                  </div>
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
