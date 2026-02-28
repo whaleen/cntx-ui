@@ -3,12 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
-import { Alert, AlertDescription } from './ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { Save, RefreshCw, Copy, Download, Sparkles, FileText, Info } from 'lucide-react'
+import { Save, RefreshCw, Sparkles, FileText, Code2 } from 'lucide-react'
 import { toast } from '@/lib/toast'
 
-// Fetch functions for .cursorrules
 const fetchCursorRules = async (): Promise<string> => {
   const response = await fetch('http://localhost:3333/api/cursor-rules')
   if (!response.ok) throw new Error('Failed to fetch cursor rules')
@@ -24,7 +22,6 @@ const saveCursorRules = async (content: string): Promise<void> => {
   if (!response.ok) throw new Error('Failed to save cursor rules')
 }
 
-// Fetch functions for CLAUDE.md
 const fetchClaudeMd = async (): Promise<string> => {
   const response = await fetch('http://localhost:3333/api/claude-md')
   if (!response.ok) throw new Error('Failed to fetch CLAUDE.md')
@@ -44,9 +41,8 @@ export function AIRulesManager() {
   const queryClient = useQueryClient()
   const [editingCursorRules, setEditingCursorRules] = useState<string>('')
   const [editingClaudeMd, setEditingClaudeMd] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'cursor' | 'claude'>('cursor')
+  const [activeTab, setActiveTab] = useState<'cursor' | 'claude'>('claude')
 
-  // Cursor Rules queries
   const { data: currentCursorRules, isLoading: cursorRulesLoading } = useQuery({
     queryKey: ['cursor-rules'],
     queryFn: fetchCursorRules
@@ -56,14 +52,11 @@ export function AIRulesManager() {
     mutationFn: saveCursorRules,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cursor-rules'] })
-      toast.success('.cursorrules saved successfully!')
+      toast.success('Cursor Rules Saved')
     },
-    onError: (error) => {
-      toast.error(`Failed to save .cursorrules: ${error.message}`)
-    }
+    onError: (error) => toast.error(`Failed to save: ${error.message}`)
   })
 
-  // CLAUDE.md queries  
   const { data: currentClaudeMd, isLoading: claudeMdLoading } = useQuery({
     queryKey: ['claude-md'],
     queryFn: fetchClaudeMd
@@ -73,198 +66,101 @@ export function AIRulesManager() {
     mutationFn: saveClaudeMd,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['claude-md'] })
-      toast.success('CLAUDE.md saved successfully!')
+      toast.success('Claude Instructions Saved')
     },
-    onError: (error) => {
-      toast.error(`Failed to save CLAUDE.md: ${error.message}`)
-    }
+    onError: (error) => toast.error(`Failed to save: ${error.message}`)
   })
 
-  // Initialize editing states when data loads
   useEffect(() => {
-    if (currentCursorRules && !editingCursorRules) {
-      setEditingCursorRules(currentCursorRules)
-    }
+    if (currentCursorRules !== undefined && !editingCursorRules) setEditingCursorRules(currentCursorRules)
   }, [currentCursorRules])
 
   useEffect(() => {
-    if (currentClaudeMd && !editingClaudeMd) {
-      setEditingClaudeMd(currentClaudeMd)
-    }
+    if (currentClaudeMd !== undefined && !editingClaudeMd) setEditingClaudeMd(currentClaudeMd)
   }, [currentClaudeMd])
 
-  const handleSaveCursorRules = () => {
-    cursorRulesMutation.mutate(editingCursorRules)
-  }
-
-  const handleSaveClaudeMd = () => {
-    claudeMdMutation.mutate(editingClaudeMd)
-  }
-
-  const handleCopyToClipboard = (content: string, type: string) => {
-    navigator.clipboard.writeText(content)
-    toast.success(`${type} copied to clipboard!`)
-  }
-
-  const handleDownload = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    toast.success(`${filename} downloaded!`)
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
-          <Sparkles className="w-4 h-4" />
-          AI Rules & Context
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Alert className="mb-4">
-          <Info className="w-4 h-4" />
-          <AlertDescription>
-            Configure AI context files for better assistance. <strong>.cursorrules</strong> works with Cursor,
-            while <strong>CLAUDE.md</strong> provides project context for Claude.
-          </AlertDescription>
-        </Alert>
+    <div className="space-y-6">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-thin tracking-tight flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-vesper-accent" />
+            Agent Governance
+          </h1>
+          <p className="text-xs text-muted-foreground font-thin">Configure rules and context for AI collaborators</p>
+        </div>
+      </header>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'cursor' | 'claude')} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="cursor" className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              .cursorrules
-            </TabsTrigger>
-            <TabsTrigger value="claude" className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              CLAUDE.md
-            </TabsTrigger>
-          </TabsList>
+      <Card className="border-vesper bg-vesper-card">
+        <CardContent className="p-0">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'cursor' | 'claude')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-black/20 p-0 border-b border-vesper h-10 rounded-none">
+              <TabsTrigger value="claude" className="rounded-none data-[state=active]:bg-vesper-card data-[state=active]:text-vesper-accent text-xs uppercase tracking-widest font-thin h-full">
+                <FileText className="w-3 h-3 mr-2" />
+                CLAUDE.md
+              </TabsTrigger>
+              <TabsTrigger value="cursor" className="rounded-none data-[state=active]:bg-vesper-card data-[state=active]:text-vesper-accent text-xs uppercase tracking-widest font-thin h-full">
+                <Code2 className="w-3 h-3 mr-2" />
+                .cursorrules
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="cursor" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-thin">Cursor AI Assistant Rules</h3>
-                <p className="text-xs text-muted-foreground font-thin">
-                  Configure how Cursor's AI understands your project
+            <TabsContent value="claude" className="p-4 m-0 space-y-4">
+              <div className="flex justify-between items-center">
+                <p className="text-[11px] color-vesper-muted italic">
+                  Defines project architecture, conventions, and goals for Claude Code.
                 </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleCopyToClipboard(editingCursorRules, '.cursorrules')}
+                <Button 
+                  onClick={() => claudeMdMutation.mutate(editingClaudeMd)} 
+                  disabled={claudeMdMutation.isPending} 
+                  size="sm" 
+                  className="h-7 text-[10px] uppercase tracking-widest bg-vesper-accent text-black hover:opacity-90"
                 >
-                  <Copy className="w-3 h-3 mr-1" />
-                  Copy
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleDownload(editingCursorRules, '.cursorrules')}
-                >
-                  <Download className="w-3 h-3 mr-1" />
-                  Download
-                </Button>
-                <Button
-                  onClick={handleSaveCursorRules}
-                  disabled={cursorRulesMutation.isPending}
-                  size="sm"
-                  className="h-7 text-xs"
-                >
-                  <Save className="w-3 h-3 mr-1" />
-                  Save
+                  {claudeMdMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin mr-2" /> : <Save className="w-3 h-3 mr-2" />}
+                  Save Instructions
                 </Button>
               </div>
-            </div>
+              
+              {claudeMdLoading ? (
+                <div className="py-20 text-center animate-pulse color-vesper-muted text-xs uppercase tracking-widest">Loading Instructions...</div>
+              ) : (
+                <Textarea
+                  value={editingClaudeMd}
+                  onChange={(e) => setEditingClaudeMd(e.target.value)}
+                  className="min-h-[400px] font-mono text-[11px] leading-relaxed bg-black/30 border-vesper color-vesper-fg"
+                />
+              )}
+            </TabsContent>
 
-            {cursorRulesLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-                Loading...
-              </div>
-            ) : (
-              <Textarea
-                value={editingCursorRules}
-                onChange={(e) => setEditingCursorRules(e.target.value)}
-                placeholder="Enter your Cursor AI rules here..."
-                className="min-h-[300px] font-mono text-sm"
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="claude" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-thin">Claude Project Context</h3>
-                <p className="text-xs text-muted-foreground font-thin">
-                  Markdown file explaining your project structure and guidelines
+            <TabsContent value="cursor" className="p-4 m-0 space-y-4">
+              <div className="flex justify-between items-center">
+                <p className="text-[11px] color-vesper-muted italic">
+                  Specific environment configuration and prompt engineering for Cursor.
                 </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleCopyToClipboard(editingClaudeMd, 'CLAUDE.md')}
+                <Button 
+                  onClick={() => cursorRulesMutation.mutate(editingCursorRules)} 
+                  disabled={cursorRulesMutation.isPending} 
+                  size="sm" 
+                  className="h-7 text-[10px] uppercase tracking-widest bg-vesper-accent text-black hover:opacity-90"
                 >
-                  <Copy className="w-3 h-3 mr-1" />
-                  Copy
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleDownload(editingClaudeMd, 'CLAUDE.md')}
-                >
-                  <Download className="w-3 h-3 mr-1" />
-                  Download
-                </Button>
-                <Button
-                  onClick={handleSaveClaudeMd}
-                  disabled={claudeMdMutation.isPending}
-                  size="sm"
-                  className="h-7 text-xs"
-                >
-                  <Save className="w-3 h-3 mr-1" />
-                  Save
+                  {cursorRulesMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin mr-2" /> : <Save className="w-3 h-3 mr-2" />}
+                  Save Rules
                 </Button>
               </div>
-            </div>
-
-            {claudeMdLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-                Loading...
-              </div>
-            ) : (
-              <Textarea
-                value={editingClaudeMd}
-                onChange={(e) => setEditingClaudeMd(e.target.value)}
-                placeholder="Enter your Claude project context here..."
-                className="min-h-[300px] font-mono text-sm"
-              />
-            )}
-
-            <Alert>
-              <Info className="w-4 h-4" />
-              <AlertDescription>
-                This file helps Claude understand your project. Include project structure,
-                coding conventions, key concepts, and any important context.
-              </AlertDescription>
-            </Alert>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+              
+              {cursorRulesLoading ? (
+                <div className="py-20 text-center animate-pulse color-vesper-muted text-xs uppercase tracking-widest">Loading Rules...</div>
+              ) : (
+                <Textarea
+                  value={editingCursorRules}
+                  onChange={(e) => setEditingCursorRules(e.target.value)}
+                  className="min-h-[400px] font-mono text-[11px] leading-relaxed bg-black/30 border-vesper color-vesper-fg"
+                />
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

@@ -98,6 +98,7 @@ export class CntxServer {
 
     // Initialize API router with all managers
     this.apiRouter = new APIRouter(
+      this,
       this.configManager,
       this.bundleManager,
       this.fileSystemManager,
@@ -109,7 +110,6 @@ export class CntxServer {
     // Add references for cross-module communication
     this.bundleManager.fileSystemManager = this.fileSystemManager;
     this.bundleManager.webSocketManager = this.webSocketManager;
-    this.apiRouter.mcpServerStarted = this.mcpServerStarted;
   }
 
   // Progress bar utility
@@ -644,7 +644,6 @@ export class CntxServer {
     if (!this.mcpServer) {
       this.mcpServer = new MCPServer(this);
       this.mcpServerStarted = true;
-      this.apiRouter.mcpServerStarted = true;
 
       if (this.verbose) {
         console.log('🔗 MCP server started');
