@@ -46,17 +46,19 @@ export default class SemanticSplitter {
     includeContext: boolean;
     minFunctionSize: number;
     minStructureSize: number;
+    verbose: boolean;
   };
   parsers: Record<string, Parser>;
   heuristicsManager: HeuristicsManager;
   bundleConfig: any;
 
-  constructor(options: { maxChunkSize?: number, includeContext?: boolean, minFunctionSize?: number, minStructureSize?: number } = {}) {
+  constructor(options: { maxChunkSize?: number, includeContext?: boolean, minFunctionSize?: number, minStructureSize?: number, verbose?: boolean } = {}) {
     this.options = {
       maxChunkSize: 3000,       // Max chars per chunk
       includeContext: true,     // Include imports/types needed
       minFunctionSize: 40,      // Skip tiny functions
       minStructureSize: 20,     // Skip tiny structures
+      verbose: options.verbose || false,
       ...options
     }
     
@@ -123,7 +125,10 @@ export default class SemanticSplitter {
         const fileChunks = this.processFile(filePath, projectPath)
         allChunks.push(...fileChunks)
       } catch (error: any) {
-        console.warn(`Failed to process ${filePath}: ${error.message}`)
+        console.warn(`⚠️ Failed to process ${filePath}: ${error.message}`)
+        if (this.options.verbose) {
+          console.error(error.stack)
+        }
       }
     }
     
@@ -151,36 +156,45 @@ export default class SemanticSplitter {
     }
 
     const parser = this.getParser(relativePath)
-    const tree = parser.parse(content)
-    const root = tree.rootNode
-    const ext = extname(relativePath).toLowerCase()
     
-    const elements = {
-      functions: [] as FunctionNode[],
-      types: [] as TypeNode[],
-      imports: [] as any[]
-    }
+    try {
+      const tree = parser.parse(content)
+      const root = tree.rootNode
+      const ext = extname(relativePath).toLowerCase()
+      
+      const elements = {
+        functions: [] as FunctionNode[],
+        types: [] as TypeNode[],
+        imports: [] as any[]
+      }
 
-    if (['.js', '.jsx', '.ts', '.tsx', '.rs'].includes(ext)) {
-      elements.imports = this.extractImports(root, content, relativePath)
-      // Traverse AST for functions and types
-      this.traverse(root, content, relativePath, elements)
-    } else if (ext === '.json') {
-      this.extractJsonStructures(root, content, relativePath, elements)
-    } else if (ext === '.css' || ext === '.scss') {
-      this.extractCssStructures(root, content, relativePath, elements)
-    } else if (ext === '.html') {
-      this.extractHtmlStructures(root, content, relativePath, elements)
-    } else if (ext === '.sql') {
-      this.extractSqlStructures(root, content, relativePath, elements)
-    } else if (ext === '.md') {
-      this.extractMarkdownStructures(root, content, relativePath, elements)
-    } else if (ext === '.toml') {
-      this.extractTomlStructures(root, content, relativePath, elements)
-    }
+      if (['.js', '.jsx', '.ts', '.tsx', '.rs'].includes(ext)) {
+        elements.imports = this.extractImports(root, content, relativePath)
+        // Traverse AST for functions and types
+        this.traverse(root, content, relativePath, elements)
+      } else if (ext === '.json') {
+        this.extractJsonStructures(root, content, relativePath, elements)
+      } else if (ext === '.css' || ext === '.scss') {
+        this.extractCssStructures(root, content, relativePath, elements)
+      } else if (ext === '.html') {
+        this.extractHtmlStructures(root, content, relativePath, elements)
+      } else if (ext === '.sql') {
+        this.extractSqlStructures(root, content, relativePath, elements)
+      } else if (ext === '.md') {
+        this.extractMarkdownStructures(root, content, relativePath, elements)
+      } else if (ext === '.toml') {
+        this.extractTomlStructures(root, content, relativePath, elements)
+      }
 
-    // Create chunks from elements
-    return this.createChunks(elements, content, relativePath)
+      // Create chunks from elements
+      return this.createChunks(elements, content, relativePath)
+    } catch (error: any) {
+      console.warn(`⚠️ Parser failed for ${relativePath}: ${error.message}`)
+      if (this.options.verbose) {
+        console.error(error.stack)
+      }
+      return []
+    }
   }
 
   traverse(node: Parser.SyntaxNode, content: string, filePath: string, elements: { functions: FunctionNode[], types: TypeNode[], imports: any[] }) {

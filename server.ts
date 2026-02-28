@@ -118,7 +118,8 @@ export class CntxServer {
     this.semanticSplitter = new SemanticSplitter({
       maxChunkSize: 2000,
       includeContext: true,
-      minFunctionSize: 50
+      minFunctionSize: 50,
+      verbose: this.verbose
     });
 
     this.vectorStore = new SimpleVectorStore(this.databaseManager, {
