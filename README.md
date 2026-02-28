@@ -1,83 +1,67 @@
 # cntx-ui
 
-**cntx-ui** is the interface layer between human mental models and machine understanding of codebases. It transforms raw source code into a traversable knowledge graph for AI agents, providing surgical context management, semantic discovery, and real-time synchronization.
+Semantic code analysis and context management for AI agents. Turns a codebase into searchable, structured context that agents can navigate efficiently.
 
-## 🚀 Key Capabilities
+## What it does
 
-### 🧠 Semantic Code Understanding
-Unlike simple file bundlers, `cntx-ui` performs function-level analysis of your codebase:
-- **Semantic Splitting:** Automatically extracts functions, types, and interfaces with their relevant context (imports/dependencies).
-- **Heuristic Categorization:** Classifies code by purpose (e.g., API Handlers, React Hooks, UI Components) using a configurable heuristics engine.
-- **Complexity Metrics:** Identifies hotspots and architectural patterns automatically.
+- **Semantic analysis** — parses your code at the function level using tree-sitter, extracts purpose, complexity, and relationships
+- **Local vector search** — embeds code chunks locally (all-MiniLM-L6-v2 via Transformers.js) for semantic similarity search with no external API calls
+- **Bundle system** — group files into logical bundles (by feature, layer, or pattern) for structured context delivery
+- **MCP server** — exposes 28+ tools to Claude Code, Claude Desktop, or any MCP-compatible client
+- **Web dashboard** — visual interface at localhost:3333 for managing bundles, browsing semantic analysis, and editing agent rules
+- **Real-time sync** — watches for file changes and keeps analysis, bundles, and embeddings current
 
-### 🔍 Local Vector Search
-Integrated RAG (Retrieval-Augmented Generation) without external dependencies:
-- **Local Embeddings:** Powered by `Transformers.js` using the `all-MiniLM-L6-v2` model.
-- **In-Memory Vector Store:** Perform semantic similarity searches across your codebase to find related implementations instantly.
+## Install
 
-### 🤖 AI Agent Runtime
-A specialized runtime that exposes advanced behavior modes via MCP:
-- **Discovery Mode:** Generates comprehensive architectural overviews.
-- **Query Mode:** Answers specific questions using semantic search and AST analysis.
-- **Investigation Mode:** Analyzes existing implementations to suggest integration points for new features.
-- **Organizer Mode:** Audits and optimizes project organization and bundle health.
-
-### 📦 Smart Bundling & MCP
-- **Dynamic Bundles:** Group files by human intent or machine discovery.
-- **MCP Server:** Expose bundles, files, and agent tools directly to Claude Desktop or any MCP-compatible client.
-- **Real-time Sync:** WebSocket-based updates ensure your AI context is always fresh.
-
----
-
-## 🛠 Installation
-
-### Global Installation (Recommended)
 ```bash
 npm install -g cntx-ui
 ```
 
-### Local Development
+## Usage
+
 ```bash
-git clone https://github.com/nothingdao/cntx-ui.git
-cd cntx-ui
-npm install
-cd web && npm install
+cntx-ui init          # scaffold .cntx directory, generate .mcp.json
+cntx-ui watch         # start web server on port 3333
+cntx-ui mcp           # start MCP server on stdio
+cntx-ui bundle <name> # regenerate a specific bundle
+cntx-ui status        # show project health and bundle state
+cntx-ui setup-mcp     # configure Claude Desktop integration
 ```
 
----
+After `cntx-ui init`, agents discover tools automatically via `.mcp.json`. The `.cntx/AGENT.md` file provides an onboarding handshake with tool reference and project overview.
 
-## 📖 Usage
+## Agent interface
 
-### Initialize a Project
-```bash
-cntx-ui init
-cntx-ui watch
-```
-*Visit `http://localhost:3333` to access the Visual Dashboard.*
+Agents interact through MCP tools or the HTTP API:
 
-### CLI Commands
-| Command | Description |
+| MCP Tool | What it does |
 | :--- | :--- |
-| `cntx-ui status` | View project health and bundle coverage. |
-| `cntx-ui bundle <name>` | Manually trigger a bundle generation. |
-| `cntx-ui setup-mcp` | Automatically configure Claude Desktop integration. |
-| `cntx-ui mcp` | Start the MCP server on stdio. |
+| `agent/discover` | Architectural overview of the codebase |
+| `agent/query` | Semantic search — "where is auth handled?" |
+| `agent/investigate` | Find integration points for a new feature |
+| `agent/organize` | Audit and optimize bundle structure |
+| `list_bundles` | List all bundles with metadata |
+| `get_bundle` | Get full bundle content as XML |
+| `get_semantic_chunks` | Get all analyzed code chunks |
+| `read_file` / `write_file` | File operations with bundle context |
 
----
+Full tool reference with parameters is generated in `.cntx/AGENT.md` and `.cntx/TOOLS.md`.
 
-## 🏗 Technology Stack
-- **Backend:** Node.js, `better-sqlite3`, `ws`
-- **AI/ML:** `Transformers.js` (Local Embeddings), `chromadb` (Vector Store)
-- **Parsing:** `tree-sitter`, Custom Semantic Splitter
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Radix UI, Lucide
-- **Protocol:** Model Context Protocol (MCP)
+## How it works
 
----
+1. **tree-sitter** parses source files into AST, extracts functions/types/interfaces
+2. **Heuristics engine** classifies each chunk by purpose, business domain, and technical patterns based on file paths, imports, and naming conventions
+3. **Embeddings** are generated locally and stored in SQLite for persistent vector search
+4. **Bundles** group files by glob patterns — auto-suggested on init based on project structure
+5. **MCP server** and **HTTP API** expose everything to agents with consistent response shapes
 
-## 🗺 Vision
-We are building more than a tool; we are building **Repository Intelligence**. Our goal is to create a self-documenting, AI-optimized environment where the friction between "knowing" a codebase and "modifying" it vanishes.
+## Tech stack
 
-See [VISION.md](./VISION.md) for the full roadmap.
+- Node.js, better-sqlite3, ws (WebSocket)
+- tree-sitter (AST parsing), Transformers.js (local embeddings)
+- React 19, TypeScript, Vite, Tailwind CSS (web dashboard)
+- Model Context Protocol (MCP) via JSON-RPC 2.0
 
-## 📄 License
+## License
+
 MIT
