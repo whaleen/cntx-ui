@@ -16,20 +16,30 @@ export default class SimpleVectorStore {
   modelName: string;
   pipe: any;
   initialized: boolean;
+  isMcp: boolean;
 
-  constructor(databaseManager: DatabaseManager, options: { modelName?: string } = {}) {
+  constructor(databaseManager: DatabaseManager, options: { modelName?: string, isMcp?: boolean } = {}) {
     this.db = databaseManager;
     this.modelName = options.modelName || 'Xenova/all-MiniLM-L6-v2';
     this.pipe = null;
     this.initialized = false;
+    this.isMcp = options.isMcp || false;
+  }
+
+  log(message: string) {
+    if (this.isMcp) {
+      process.stderr.write(message + '\n');
+    } else {
+      console.log(message);
+    }
   }
 
   async init() {
     if (this.initialized) return;
-    console.log(`🤖 Initializing local RAG engine (${this.modelName})...`);
+    this.log(`🤖 Initializing local RAG engine (${this.modelName})...`);
     this.pipe = await pipeline('feature-extraction', this.modelName);
     this.initialized = true;
-    console.log('✅ Local RAG engine ready');
+    this.log('✅ Local RAG engine ready');
   }
 
   async generateEmbedding(text: string): Promise<Float32Array> {

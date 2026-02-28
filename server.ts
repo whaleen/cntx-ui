@@ -49,12 +49,14 @@ export interface ServerOptions {
   port?: number;
   host?: string;
   withMcp?: boolean;
+  isMcp?: boolean;
 }
 
 export class CntxServer {
   CWD: string;
   CNTX_DIR: string;
   verbose: boolean;
+  isMcp: boolean;
   mcpServerStarted: boolean;
   mcpServer: MCPServer | null;
   initMessages: string[];
@@ -81,6 +83,7 @@ export class CntxServer {
     this.CWD = cwd;
     this.CNTX_DIR = join(cwd, '.cntx');
     this.verbose = options.verbose || false;
+    this.isMcp = options.isMcp || false;
     this.mcpServerStarted = false;
     this.mcpServer = null;
     this.initMessages = [];
@@ -104,7 +107,8 @@ export class CntxServer {
     });
 
     this.vectorStore = new SimpleVectorStore(this.databaseManager, {
-      modelName: 'Xenova/all-MiniLM-L6-v2'
+      modelName: 'Xenova/all-MiniLM-L6-v2',
+      isMcp: this.isMcp
     });
 
     this.semanticCache = null;
@@ -131,6 +135,14 @@ export class CntxServer {
     // Cross-module linkage
     this.bundleManager.fileSystemManager = this.fileSystemManager;
     this.bundleManager.webSocketManager = this.webSocketManager;
+  }
+
+  log(message: string) {
+    if (this.isMcp) {
+      process.stderr.write(message + '\n');
+    } else {
+      console.log(message);
+    }
   }
 
   async init(options: ServerOptions = {}) {
@@ -262,7 +274,7 @@ export class CntxServer {
 
     return new Promise((resolve) => {
       server.listen(port, host, () => {
-        console.log(`🚀 cntx-ui server running at http://${host}:${port}`);
+        this.log(`🚀 cntx-ui server running at http://${host}:${port}`);
         resolve(server);
       });
     });
@@ -325,7 +337,7 @@ export async function initConfig(cwd = process.cwd()) {
   // 1. Initialize directory structure
   if (!existsSync(server.CNTX_DIR)) {
     mkdirSync(server.CNTX_DIR, { recursive: true });
-    console.log('📁 Created .cntx directory');
+    server.log('📁 Created .cntx directory');
   }
 
   // 2. Create .mcp.json for Claude Code discovery
@@ -340,7 +352,7 @@ export async function initConfig(cwd = process.cwd()) {
     }
   };
   writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), 'utf8');
-  console.log('📄 Created .mcp.json for agent auto-discovery');
+  server.log('📄 Created .mcp.json for agent auto-discovery');
 
   // 3. Initialize basic configuration with better defaults and auto-suggestions
   server.configManager.loadConfig();
@@ -362,7 +374,7 @@ export async function initConfig(cwd = process.cwd()) {
   commonDirs.forEach(d => {
     if (existsSync(join(cwd, d.dir))) {
       suggestedBundles[d.name] = [`${d.dir}/**`];
-      console.log(`💡 Suggested bundle: ${d.name} (${d.dir}/**)`);
+      server.log(`💡 Suggested bundle: ${d.name} (${d.dir}/**)`);
     }
   });
 
@@ -398,10 +410,10 @@ export async function initConfig(cwd = process.cwd()) {
 .mcp.json
 `;
     writeFileSync(ignorePath, defaultIgnore, 'utf8');
-    console.log('📄 Created .cntxignore with smart defaults');
+    server.log('📄 Created .cntxignore with smart defaults');
   }
 
-  console.log('⚙️ Basic configuration initialized');
+  server.log('⚙️ Basic configuration initialized');
 
   let templateDir = join(__dirname, 'templates');
   if (!existsSync(templateDir)) {
@@ -432,7 +444,7 @@ export async function initConfig(cwd = process.cwd()) {
       } else {
         copyFileSync(sourcePath, destPath);
       }
-      console.log(`📄 Created ${file}`);
+      server.log(`📄 Created ${file}`);
     }
   }
 
@@ -442,7 +454,7 @@ export async function initConfig(cwd = process.cwd()) {
   
   if (existsSync(agentRulesSource) && !existsSync(agentRulesDest)) {
     cpSync(agentRulesSource, agentRulesDest, { recursive: true });
-    console.log('📁 Created agent-rules directory with templates');
+    server.log('📁 Created agent-rules directory with templates');
   }
 
   return server.initMessages;
@@ -473,14 +485,14 @@ export async function getStatus() {
     })
   );
 
-  console.log('📊 cntx-ui Status');
-  console.log('================');
-  console.log(`Total files: ${totalFiles}`);
-  console.log(`Bundles: ${bundlesWithCounts.length}`);
+  server.log('📊 cntx-ui Status');
+  server.log('================');
+  server.log(`Total files: ${totalFiles}`);
+  server.log(`Bundles: ${bundlesWithCounts.length}`);
 
   bundlesWithCounts.forEach(bundle => {
     const sizeStr = bundle.size > 0 ? ` (${Math.round(bundle.size / 1024)}KB)` : '';
-    console.log(`  • ${bundle.name}: ${bundle.fileCount} files${sizeStr}`);
+    server.log(`  • ${bundle.name}: ${bundle.fileCount} files${sizeStr}`);
   });
 
   return {
@@ -494,9 +506,11 @@ export function setupMCP() {
   const configPath = join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
   const projectPath = process.cwd();
 
-  console.log('🔧 Setting up MCP integration...');
-  console.log(`Project: ${projectPath}`);
-  console.log(`Claude config: ${configPath}`);
+  const server = new CntxServer(projectPath);
+
+  server.log('🔧 Setting up MCP integration...');
+  server.log(`Project: ${projectPath}`);
+  server.log(`Claude config: ${configPath}`);
 
   try {
     let config: any = {};
@@ -518,19 +532,19 @@ export function setupMCP() {
     mkdirSync(dirname(configPath), { recursive: true });
     writeFileSync(configPath, JSON.stringify(config, null, 2));
 
-    console.log('✅ MCP integration configured');
-    console.log('💡 Restart Claude Desktop to apply changes');
+    server.log('✅ MCP integration configured');
+    server.log('💡 Restart Claude Desktop to apply changes');
   } catch (error: any) {
     console.error('❌ Failed to setup MCP:', error.message);
-    console.log('💡 You may need to manually add the configuration to Claude Desktop');
+    server.log('💡 You may need to manually add the configuration to Claude Desktop');
   }
 }
 
 // Auto-start server when run directly
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
-  console.log('🚀 Starting cntx-ui server...');
   const server = new CntxServer();
+  server.log('🚀 Starting cntx-ui server...');
   server.init();
   server.listen(3333, 'localhost');
 }

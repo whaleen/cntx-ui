@@ -18,7 +18,11 @@ const isVerbose = args.includes('--verbose');
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down cntx-ui...');
+  if (command === 'mcp') {
+    process.stderr.write('\n👋 Shutting down cntx-ui...\n');
+  } else {
+    console.log('\n👋 Shutting down cntx-ui...');
+  }
   process.exit(0);
 });
 
@@ -40,7 +44,7 @@ async function main() {
         break;
 
       case 'mcp':
-        await startServer({ withMcp: true, skipFileWatcher: true });
+        await startServer({ withMcp: true, skipFileWatcher: true, isMcp: true });
         break;
 
       case 'bundle':
