@@ -38,6 +38,8 @@
   "scripts": {
     "dev": "node server.js",
     "build": "cd web && npm install && npm run build",
+    "check:version-sync": "node scripts/check-version-sync.mjs",
+    "release:ci": "node scripts/release-from-package.mjs",
     "prepublishOnly": "npm run build",
     "test:local": "npm pack && npm install -g ./cntx-ui-3.0.0.tgz"
   },
