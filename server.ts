@@ -439,19 +439,32 @@ export async function getStatus() {
   const bundles = server.bundleManager.getAllBundleInfo();
   const totalFiles = server.fileSystemManager.getAllFiles().length;
 
+  // Resolve actual file counts from glob patterns (getAllBundleInfo only
+  // returns stored counts which are 0 until bundles are generated)
+  const bundlesWithCounts = await Promise.all(
+    bundles.map(async (bundle) => {
+      if (bundle.fileCount === 0 && bundle.patterns?.length) {
+        const files = await server.bundleManager.resolveBundleFiles(bundle.name);
+        return { ...bundle, fileCount: files.length };
+      }
+      return bundle;
+    })
+  );
+
   console.log('📊 cntx-ui Status');
   console.log('================');
   console.log(`Total files: ${totalFiles}`);
-  console.log(`Bundles: ${bundles.length}`);
+  console.log(`Bundles: ${bundlesWithCounts.length}`);
 
-  bundles.forEach(bundle => {
-    console.log(`  • ${bundle.name}: ${bundle.fileCount} files (${Math.round(bundle.size / 1024)}KB)`);
+  bundlesWithCounts.forEach(bundle => {
+    const sizeStr = bundle.size > 0 ? ` (${Math.round(bundle.size / 1024)}KB)` : '';
+    console.log(`  • ${bundle.name}: ${bundle.fileCount} files${sizeStr}`);
   });
 
   return {
     totalFiles,
-    bundles: bundles.length,
-    bundleDetails: bundles
+    bundles: bundlesWithCounts.length,
+    bundleDetails: bundlesWithCounts
   };
 }
 
