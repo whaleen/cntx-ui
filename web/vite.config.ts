@@ -11,7 +11,18 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false, // Reduce bundle size
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
+      onwarn: (warning, warn) => {
+        if (
+          warning.code === 'MISSING_EXPORT' &&
+          warning.message.includes('child-process-proxy.js') &&
+          warning.message.includes('spawn')
+        ) {
+          return
+        }
+        warn(warning)
+      },
       output: {
         manualChunks: undefined, // Keep everything in one chunk for simplicity
       },

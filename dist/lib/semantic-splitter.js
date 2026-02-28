@@ -38,6 +38,7 @@ export default class SemanticSplitter {
     getParser(filePath) {
         const ext = extname(filePath);
         switch (ext) {
+            case '.jsx': return this.parsers.javascript;
             case '.ts': return this.parsers.typescript;
             case '.tsx': return this.parsers.tsx;
             case '.rs': return this.parsers.rust;
