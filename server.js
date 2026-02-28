@@ -12,10 +12,12 @@ import { homedir } from 'os';
 
 // Import our modular components
 import ConfigurationManager from './lib/configuration-manager.js';
+import DatabaseManager from './lib/database-manager.js';
 import FileSystemManager from './lib/file-system-manager.js';
 import BundleManager from './lib/bundle-manager.js';
 import APIRouter from './lib/api-router.js';
 import WebSocketManager from './lib/websocket-manager.js';
+import { AgentRuntime } from './lib/agent-runtime.js';
 
 // Import existing lib modules
 import { startMCPTransport } from './lib/mcp-transport.js';
@@ -51,8 +53,12 @@ export class CntxServer {
     this.mcpServer = null;
     this.initMessages = []; // Track initialization messages
 
+    // Ensure directory exists early
+    if (!existsSync(this.CNTX_DIR)) mkdirSync(this.CNTX_DIR, { recursive: true });
+
     // Initialize modular components
     this.configManager = new ConfigurationManager(cwd, { verbose: this.verbose });
+    this.databaseManager = new DatabaseManager(this.CNTX_DIR, { verbose: this.verbose });
     this.fileSystemManager = new FileSystemManager(cwd, { verbose: this.verbose });
     this.bundleManager = new BundleManager(this.configManager, this.fileSystemManager, this.verbose);
     this.webSocketManager = new WebSocketManager(this.bundleManager, this.configManager, { verbose: this.verbose });
@@ -61,18 +67,19 @@ export class CntxServer {
     this.semanticSplitter = new SemanticSplitter({
       maxChunkSize: 2000,
       includeContext: true,
-      groupRelated: true,
       minFunctionSize: 50
     });
 
-    this.vectorStore = new SimpleVectorStore({
-      modelName: 'Xenova/all-MiniLM-L6-v2',
-      collectionName: 'code-chunks'
+    this.vectorStore = new SimpleVectorStore(this.databaseManager, {
+      modelName: 'Xenova/all-MiniLM-L6-v2'
     });
 
     this.semanticCache = null;
     this.lastSemanticAnalysis = null;
     this.vectorStoreInitialized = false;
+
+    // Initialize Agent Runtime
+    this.agentRuntime = new AgentRuntime(this);
 
     // Create semantic analysis manager object for API router
     this.semanticAnalysisManager = {
@@ -236,6 +243,9 @@ export class CntxServer {
 
     // Complete progress bar
     progress.complete();
+
+    // Generate Agent Manifest
+    await this.agentRuntime.generateAgentManifest();
   }
 
   // Display initialization summary
@@ -402,58 +412,57 @@ export class CntxServer {
   // === Semantic Analysis (Legacy methods for compatibility) ===
 
   async getSemanticAnalysis() {
-    // First, try to load from cache
-    if (!this.semanticCache) {
-      const cacheData = this.configManager.loadSemanticCache();
-      if (cacheData) {
-        this.semanticCache = cacheData.analysis;
-        this.lastSemanticAnalysis = cacheData.timestamp;
-        return cacheData.analysis;
-      }
-    }
-
-    // Check if we need to refresh the semantic analysis
-    const shouldRefresh = !this.semanticCache || !this.lastSemanticAnalysis;
-
-    if (shouldRefresh) {
-      try {
-        // Auto-discover JavaScript/TypeScript files in the entire project
-        const patterns = ['**/*.{js,jsx,ts,tsx,mjs}'];
-
-        // Load bundle configuration for chunk grouping
-        let bundleConfig = null;
-        if (existsSync(this.configManager.CONFIG_FILE)) {
-          bundleConfig = JSON.parse(readFileSync(this.configManager.CONFIG_FILE, 'utf8'));
+    // 1. Try to load from SQLite first
+    try {
+      const dbChunks = this.databaseManager.db.prepare('SELECT * FROM semantic_chunks').all();
+      if (dbChunks.length > 0) {
+        if (!this.semanticCache) {
+          this.semanticCache = {
+            chunks: dbChunks.map(row => this.databaseManager.mapChunkRow(row)),
+            summary: { totalChunks: dbChunks.length }
+          };
         }
-
-        this.semanticCache = await this.semanticSplitter.extractSemanticChunks(this.CWD, patterns, bundleConfig);
-        this.lastSemanticAnalysis = Date.now();
-
-        // Only enhance chunks with embeddings if they don't already have them
-        await this.enhanceSemanticChunksIfNeeded(this.semanticCache);
-
-        // Save to disk cache
-        this.configManager.saveSemanticCache(this.semanticCache);
-
-        console.log('🔍 Semantic analysis complete');
-      } catch (error) {
-        console.error('Semantic analysis failed:', error.message);
-        throw new Error(`Semantic analysis failed: ${error.message}`);
+        return this.semanticCache;
       }
+    } catch (e) {
+      console.warn('Failed to load chunks from SQLite, performing fresh analysis...');
     }
 
-    return this.semanticCache;
+    // 2. Perform fresh analysis if DB is empty
+    try {
+      const patterns = ['**/*.{js,jsx,ts,tsx,mjs}'];
+      let bundleConfig = null;
+      if (existsSync(this.configManager.CONFIG_FILE)) {
+        bundleConfig = JSON.parse(readFileSync(this.configManager.CONFIG_FILE, 'utf8'));
+      }
+
+      this.semanticCache = await this.semanticSplitter.extractSemanticChunks(this.CWD, patterns, bundleConfig);
+      this.lastSemanticAnalysis = Date.now();
+
+      // 3. Persist chunks to SQLite immediately
+      if (this.semanticCache.chunks.length > 0) {
+        this.databaseManager.saveChunks(this.semanticCache.chunks);
+      }
+
+      // 4. Trigger background embedding enhancement
+      this.enhanceSemanticChunksIfNeeded(this.semanticCache);
+
+      return this.semanticCache;
+    } catch (error) {
+      console.error('Semantic analysis failed:', error.message);
+      throw new Error(`Semantic analysis failed: ${error.message}`);
+    }
   }
 
   async refreshSemanticAnalysis() {
-    console.log('🔄 Forcing semantic analysis refresh...');
-
-    // Clear memory cache
+    console.log('🔄 Refreshing semantic analysis and database...');
+    
+    // Clear the database table but keep other data
+    this.databaseManager.db.prepare('DELETE FROM semantic_chunks').run();
+    this.databaseManager.db.prepare('DELETE FROM vector_embeddings').run();
+    
     this.semanticCache = null;
     this.lastSemanticAnalysis = null;
-
-    // Remove disk cache file
-    this.configManager.invalidateSemanticCache();
 
     return this.getSemanticAnalysis();
   }
@@ -461,14 +470,20 @@ export class CntxServer {
   async enhanceSemanticChunksIfNeeded(analysis) {
     if (!analysis || !analysis.chunks) return;
 
-    const chunksNeedingEmbeddings = analysis.chunks.filter(chunk => !chunk.embedding);
+    // Check DB for existing embeddings to find only what's missing
+    const chunksNeedingEmbeddings = [];
+    for (const chunk of analysis.chunks) {
+      if (!this.databaseManager.getEmbedding(chunk.id)) {
+        chunksNeedingEmbeddings.push(chunk);
+      }
+    }
 
     if (chunksNeedingEmbeddings.length === 0) {
-      console.log('✅ All chunks already have embeddings');
+      console.log('✅ All chunks already have persistent embeddings');
       return;
     }
 
-    console.log(`🔧 Enhancing ${chunksNeedingEmbeddings.length} chunks with embeddings...`);
+    console.log(`🔧 Enhancing ${chunksNeedingEmbeddings.length} chunks with persistent embeddings...`);
 
     // Initialize vector store if needed
     if (!this.vectorStoreInitialized) {
@@ -476,29 +491,20 @@ export class CntxServer {
       this.vectorStoreInitialized = true;
     }
 
-    // Add embeddings to chunks that need them
+    // Add embeddings to chunks that need them and persist
     for (const chunk of chunksNeedingEmbeddings) {
       try {
-        const content = this.getChunkContentForEmbedding(chunk);
-        chunk.embedding = await this.vectorStore.generateEmbedding(content);
+        await this.vectorStore.upsertChunk(chunk);
       } catch (error) {
-        console.error(`Failed to generate embedding for chunk ${chunk.id}:`, error.message);
+        console.error(`Failed to generate/persist embedding for chunk ${chunk.id}:`, error.message);
       }
     }
+    console.log('✅ Background embedding enhancement complete');
   }
 
-  getChunkContentForEmbedding(chunk) {
-    let content = chunk.content || '';
-
-    if (chunk.businessDomains?.length > 0) {
-      content += ' ' + chunk.businessDomains.join(' ');
-    }
-
-    if (chunk.technicalPatterns?.length > 0) {
-      content += ' ' + chunk.technicalPatterns.join(' ');
-    }
-
-    return content.trim();
+  invalidateSemanticCache() {
+    this.semanticCache = null;
+    this.lastSemanticAnalysis = null;
   }
 
   async exportSemanticChunk(chunkName) {
