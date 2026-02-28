@@ -6,9 +6,7 @@
 import { createServer } from 'http';
 import { join, dirname, relative, extname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, cpSync } from 'fs';
-import * as fs from 'fs';
-import { homedir } from 'os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 
 // Import our modular components
 import ConfigurationManager from './lib/configuration-manager.js';
@@ -17,7 +15,6 @@ import FileSystemManager from './lib/file-system-manager.js';
 import BundleManager from './lib/bundle-manager.js';
 import APIRouter from './lib/api-router.js';
 import WebSocketManager from './lib/websocket-manager.js';
-import { AgentRuntime } from './lib/agent-runtime.js';
 
 // Import existing lib modules
 import { startMCPTransport } from './lib/mcp-transport.js';
@@ -51,7 +48,6 @@ export class CntxServer {
     this.verbose = options.verbose || false;
     this.mcpServerStarted = false;
     this.mcpServer = null;
-    this.initMessages = []; // Track initialization messages
 
     // Ensure directory exists early
     if (!existsSync(this.CNTX_DIR)) mkdirSync(this.CNTX_DIR, { recursive: true });
@@ -78,9 +74,6 @@ export class CntxServer {
     this.lastSemanticAnalysis = null;
     this.vectorStoreInitialized = false;
 
-    // Initialize Agent Runtime
-    this.agentRuntime = new AgentRuntime(this);
-
     // Create semantic analysis manager object for API router
     this.semanticAnalysisManager = {
       getSemanticAnalysis: () => this.getSemanticAnalysis(),
@@ -104,87 +97,35 @@ export class CntxServer {
     this.bundleManager.webSocketManager = this.webSocketManager;
   }
 
-  // Progress bar utility
-  async showProgressBar(message, minTime = 500) {
-    const startTime = Date.now();
-    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    let frameIndex = 0;
+  // === Proxy methods for MCP compatibility ===
 
-    const interval = setInterval(() => {
-      process.stdout.write(`\r${frames[frameIndex]} ${message}`);
-      frameIndex = (frameIndex + 1) % frames.length;
-    }, 80);
-
-    return () => {
-      clearInterval(interval);
-      const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, minTime - elapsed);
-
-      if (remaining > 0) {
-        return new Promise(resolve => setTimeout(resolve, remaining));
-      }
-      return Promise.resolve();
-    };
+  get bundles() {
+    return this.configManager.getBundles();
   }
 
-  // Single progress bar for initialization
-  async showInitProgress(steps) {
-    const totalSteps = steps.length;
-    let currentStep = 0;
-
-    const updateProgress = (stepName, completed = false) => {
-      const progress = Math.round((currentStep / totalSteps) * 100);
-      const barLength = 30;
-      const filledLength = Math.round((progress / 100) * barLength);
-      const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
-
-      // Clear the line and show progress
-      process.stdout.write(`\r[${bar}] ${progress}% - ${stepName}${' '.repeat(20)}`);
-    };
-
-    // Initialize progress bar
-    updateProgress(steps[0]);
-
-    return {
-      next: (stepName, minTime = 800) => {
-        return new Promise(async (resolve) => {
-          const startTime = Date.now();
-
-          // Move to next step
-          currentStep++;
-
-          if (currentStep < totalSteps) {
-            updateProgress(steps[currentStep]);
-          }
-
-          // Add random delay between 200-800ms on top of minimum time
-          const randomDelay = Math.floor(Math.random() * 600) + 200;
-          const totalDelay = minTime + randomDelay;
-
-          // Wait minimum time + random delay
-          const elapsed = Date.now() - startTime;
-          const remaining = Math.max(0, totalDelay - elapsed);
-          if (remaining > 0) {
-            await new Promise(resolve => setTimeout(resolve, remaining));
-          }
-
-          resolve();
-        });
-      },
-      complete: () => {
-        const progress = 100;
-        const barLength = 30;
-        const bar = '█'.repeat(barLength);
-        process.stdout.write(`\r[${bar}] ${progress}% - Complete${' '.repeat(20)}\n`);
-      }
-    };
+  getAllFiles() {
+    return this.fileSystemManager.getAllFiles();
   }
 
-  // Helper method to add initialization messages
-  addInitMessage(message) {
-    if (this.verbose) {
-      this.initMessages.push(message);
-    }
+  getFileTree() {
+    return this.fileSystemManager.getFileTree();
+  }
+
+  generateBundle(name) {
+    return this.bundleManager.regenerateBundle(name);
+  }
+
+  generateAllBundles() {
+    return this.bundleManager.generateAllBundles();
+  }
+
+  saveBundleStates() {
+    return this.configManager.saveBundleStates();
+  }
+
+  loadIgnorePatterns() {
+    this.configManager.loadIgnorePatterns();
+    this.fileSystemManager.setIgnorePatterns(this.configManager.getIgnorePatterns());
   }
 
   // === Initialization ===
@@ -194,55 +135,45 @@ export class CntxServer {
 
     const { skipFileWatcher = false, skipBundleGeneration = false } = options;
 
-    const steps = skipFileWatcher 
-      ? ['Loading configuration', 'Loading semantic cache']
-      : ['Loading configuration', 'Setting up file watcher', 'Loading semantic cache', 'Starting file watcher', 'Generating bundles'];
-
-    const progress = await this.showInitProgress(steps);
-
-    // Step 1: Loading configuration
+    // Step 1: Load configuration
     this.configManager.loadConfig();
     this.configManager.loadHiddenFilesConfig();
     this.configManager.loadIgnorePatterns();
     this.configManager.loadBundleStates();
-    await progress.next(steps[0], 800);
+    console.log('  Configuration loaded');
 
     if (!skipFileWatcher) {
-      // Step 2: Setting up file watcher
+      // Step 2: Set up file watcher
       this.fileSystemManager.setIgnorePatterns(this.configManager.getIgnorePatterns());
-      await progress.next(steps[1], 400);
+      console.log('  File watcher configured');
     }
 
-    // Step 3: Loading semantic cache
+    // Step 3: Load semantic cache
     const cacheData = this.configManager.loadSemanticCache();
     if (cacheData) {
       this.semanticCache = cacheData.analysis;
       this.lastSemanticAnalysis = cacheData.timestamp;
+      console.log(`  Semantic cache loaded (${this.semanticCache.chunks.length} chunks)`);
+    } else {
+      console.log('  No semantic cache found (will analyze on first request)');
     }
-    await progress.next(skipFileWatcher ? steps[1] : steps[2], 800);
 
     if (!skipFileWatcher) {
-      // Step 4: Starting file watcher
+      // Step 4: Start file watcher
       this.startWatching();
-      await progress.next(steps[3], 600);
+      console.log('  File watcher started');
 
       // Trigger initial semantic analysis in background if no cache
       if (!this.semanticCache) {
         this.getSemanticAnalysis().catch(err => console.error('Initial semantic analysis failed:', err.message));
       }
 
-      // Step 5: Generating bundles
+      // Step 5: Generate bundles (awaited to prevent race conditions)
       if (!skipBundleGeneration) {
-        this.bundleManager.generateAllBundles();
-        await progress.next(steps[4], 1200);
+        await this.bundleManager.generateAllBundles();
+        console.log('  Bundles generated');
       }
     }
-
-    // Complete progress bar
-    progress.complete();
-
-    // Generate Agent Manifest
-    await this.agentRuntime.generateAgentManifest();
   }
 
   // Display initialization summary
@@ -273,7 +204,7 @@ export class CntxServer {
     // Display summary
     if (summary.length > 0) {
       console.log('Initialization complete:');
-      summary.forEach(msg => console.log(`  • ${msg}`));
+      summary.forEach(msg => console.log(`  - ${msg}`));
       console.log('');
     }
   }
@@ -283,13 +214,13 @@ export class CntxServer {
   startWatching() {
     this.fileSystemManager.startWatching(async (eventType, filename) => {
       if (this.verbose) {
-        console.log(`📁 File ${eventType}: ${filename}`);
+        console.log(`File ${eventType}: ${filename}`);
       }
 
       // Skip processing files in .cntx directory to prevent infinite loops
       if (filename.startsWith('.cntx/')) {
         if (this.verbose) {
-          console.log(`📁 Skipping .cntx file: ${filename}`);
+          console.log(`Skipping .cntx file: ${filename}`);
         }
         return;
       }
@@ -329,7 +260,7 @@ export class CntxServer {
       // Regenerate each affected bundle
       for (const bundleName of affectedBundles) {
         if (this.verbose) {
-          console.log(`🔄 Auto-regenerating bundle: ${bundleName}`);
+          console.log(`Auto-regenerating bundle: ${bundleName}`);
         }
         await this.bundleManager.regenerateBundle(bundleName);
       }
@@ -431,7 +362,7 @@ export class CntxServer {
       const files = this.fileSystemManager.getAllFiles()
         .filter(f => supportedExtensions.includes(extname(f).toLowerCase()))
         .map(f => relative(this.CWD, f));
-      
+
       let bundleConfig = null;
       if (existsSync(this.configManager.CONFIG_FILE)) {
         bundleConfig = JSON.parse(readFileSync(this.configManager.CONFIG_FILE, 'utf8'));
@@ -446,7 +377,9 @@ export class CntxServer {
       }
 
       // 4. Trigger background embedding enhancement
-      this.enhanceSemanticChunksIfNeeded(this.semanticCache);
+      this.enhanceSemanticChunksIfNeeded(this.semanticCache).catch(err => {
+        console.error('Background embedding enhancement failed:', err.message);
+      });
 
       return this.semanticCache;
     } catch (error) {
@@ -456,12 +389,12 @@ export class CntxServer {
   }
 
   async refreshSemanticAnalysis() {
-    console.log('🔄 Refreshing semantic analysis and database...');
-    
+    console.log('Refreshing semantic analysis and database...');
+
     // Clear the database table but keep other data
     this.databaseManager.db.prepare('DELETE FROM semantic_chunks').run();
     this.databaseManager.db.prepare('DELETE FROM vector_embeddings').run();
-    
+
     this.semanticCache = null;
     this.lastSemanticAnalysis = null;
 
@@ -480,11 +413,11 @@ export class CntxServer {
     }
 
     if (chunksNeedingEmbeddings.length === 0) {
-      console.log('✅ All chunks already have persistent embeddings');
+      console.log('All chunks already have persistent embeddings');
       return;
     }
 
-    console.log(`🔧 Enhancing ${chunksNeedingEmbeddings.length} chunks with persistent embeddings...`);
+    console.log(`Enhancing ${chunksNeedingEmbeddings.length} chunks with persistent embeddings...`);
 
     // Initialize vector store if needed
     if (!this.vectorStoreInitialized) {
@@ -500,7 +433,7 @@ export class CntxServer {
         console.error(`Failed to generate/persist embedding for chunk ${chunk.id}:`, error.message);
       }
     }
-    console.log('✅ Background embedding enhancement complete');
+    console.log('Background embedding enhancement complete');
   }
 
   invalidateSemanticCache() {
@@ -519,11 +452,6 @@ export class CntxServer {
     return this.bundleManager.generateFileXML(chunk.filePath);
   }
 
-  invalidateSemanticCache() {
-    this.semanticCache = null;
-    this.lastSemanticAnalysis = null;
-  }
-
   // === MCP Server Integration ===
 
   startMCPServer() {
@@ -532,7 +460,7 @@ export class CntxServer {
       this.mcpServerStarted = true;
 
       if (this.verbose) {
-        console.log('🔗 MCP server started');
+        console.log('MCP server started');
       }
     }
   }
@@ -550,8 +478,8 @@ export class CntxServer {
     // Start server and show progress
     server.listen(port, host, () => {
       console.log('');
-      console.log(`🌐 Server running at http://${host}:${port}`);
-      console.log(`📊 Serving ${this.bundleManager.getAllBundleInfo().length} bundles from your project`);
+      console.log(`Server running at http://${host}:${port}`);
+      console.log(`Serving ${this.bundleManager.getAllBundleInfo().length} bundles from your project`);
       console.log('');
 
       // Display initialization summary
@@ -560,11 +488,11 @@ export class CntxServer {
 
     // Handle graceful shutdown
     process.on('SIGINT', () => {
-      console.log('\n🛑 Shutting down server...');
+      console.log('\nShutting down server...');
       this.webSocketManager.close();
       this.fileSystemManager.destroy();
       server.close(() => {
-        console.log('✅ Server stopped');
+        console.log('Server stopped');
         process.exit(0);
       });
     });
@@ -573,11 +501,25 @@ export class CntxServer {
   }
 }
 
+// Auto-init and start: checks for .cntx/, runs initConfig() if missing, then starts server
+export async function autoInitAndStart(options = {}) {
+  const cwd = options.cwd || process.cwd();
+  const cntxDir = join(cwd, '.cntx');
+
+  if (!existsSync(cntxDir)) {
+    console.log('No .cntx directory found, initializing...');
+    console.log('');
+    await initConfig(cwd);
+    console.log('');
+  }
+
+  return startServer(options);
+}
+
 // Export function for CLI compatibility
 export async function startServer(options = {}) {
   const server = new CntxServer(options.cwd, { verbose: options.verbose });
 
-  // Show ASCII art first
   const asciiArt = `
  ██████ ███    ██ ████████ ██   ██       ██    ██ ██
 ██      ████   ██    ██     ██ ██        ██    ██ ██
@@ -586,12 +528,13 @@ export async function startServer(options = {}) {
  ██████ ██   ████    ██    ██   ██        ██████  ██
 `;
   console.log(asciiArt);
-  console.log(''); // Add blank line after art
 
-  // Now start initialization with progress bar
+  // Now start initialization
   await server.init();
 
-  if (options.withMcp) {
+  // Enable MCP status tracking by default
+  const withMcp = options.withMcp !== false;
+  if (withMcp) {
     server.startMCPServer();
   }
 
@@ -605,7 +548,7 @@ export async function startMCPServer(options = {}) {
   server.startMCPServer();
 
   // For MCP mode, we don't start the web server, just keep the process alive
-  console.log('🔗 MCP server running on stdio...');
+  console.log('MCP server running on stdio...');
 }
 
 export async function generateBundle(bundleName = 'master') {
@@ -625,11 +568,11 @@ export async function generateBundle(bundleName = 'master') {
 // Initialize project configuration
 export async function initConfig(cwd = process.cwd()) {
   const server = new CntxServer(cwd);
-  
+
   // 1. Initialize directory structure
   if (!existsSync(server.CNTX_DIR)) {
     mkdirSync(server.CNTX_DIR, { recursive: true });
-    console.log('📁 Created .cntx directory');
+    console.log('Created .cntx directory');
   }
 
   // 2. Create .mcp.json for Claude Code discovery
@@ -644,11 +587,11 @@ export async function initConfig(cwd = process.cwd()) {
     }
   };
   writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), 'utf8');
-  console.log('📄 Created .mcp.json for agent auto-discovery');
+  console.log('Created .mcp.json for MCP auto-discovery');
 
   // 3. Initialize basic configuration with better defaults and auto-suggestions
   server.configManager.loadConfig();
-  
+
   const suggestedBundles = {
     master: ['**/*']
   };
@@ -666,7 +609,7 @@ export async function initConfig(cwd = process.cwd()) {
   commonDirs.forEach(d => {
     if (existsSync(join(cwd, d.dir))) {
       suggestedBundles[d.name] = [`${d.dir}/**`];
-      console.log(`💡 Suggested bundle: ${d.name} (${d.dir}/**)`);
+      console.log(`  Suggested bundle: ${d.name} (${d.dir}/**)`);
     }
   });
 
@@ -702,48 +645,12 @@ export async function initConfig(cwd = process.cwd()) {
 .mcp.json
 `;
     writeFileSync(ignorePath, defaultIgnore, 'utf8');
-    console.log('📄 Created .cntxignore with smart defaults');
+    console.log('Created .cntxignore with smart defaults');
   }
 
-  console.log('⚙️ Basic configuration initialized');
-
-  // ... (rest of the file remains same)
-  const templateDir = join(__dirname, 'templates');
-
-  // Copy agent configuration files
-  const agentFiles = [
-    'agent-config.yaml',
-    'agent-instructions.md'
-  ];
-
-  for (const file of agentFiles) {
-    const sourcePath = join(templateDir, file);
-    const destPath = join(server.CNTX_DIR, file);
-    
-    if (existsSync(sourcePath) && !existsSync(destPath)) {
-      copyFileSync(sourcePath, destPath);
-      console.log(`📄 Created ${file}`);
-    }
-  }
-
-  // Copy agent-rules directory structure
-  const agentRulesSource = join(templateDir, 'agent-rules');
-  const agentRulesDest = join(server.CNTX_DIR, 'agent-rules');
-  
-  if (existsSync(agentRulesSource) && !existsSync(agentRulesDest)) {
-    cpSync(agentRulesSource, agentRulesDest, { recursive: true });
-    console.log('📁 Created agent-rules directory with templates');
-  }
-
+  console.log('Configuration initialized');
   console.log('');
-  console.log('🎉 cntx-ui initialized with full scaffolding!');
-  console.log('');
-  console.log('Next steps:');
-  console.log('  1️⃣  Start the server: cntx-ui watch');
-  console.log('  2️⃣  Open web UI: http://localhost:3333');
-  console.log('  3️⃣  Read .cntx/agent-instructions.md for AI integration');
-  console.log('');
-  console.log('💡 Pro tip: Use "cntx-ui status" to see your project overview');
+  console.log('Run cntx-ui to start the server, then open http://localhost:3333');
 }
 
 export async function getStatus() {
@@ -753,13 +660,13 @@ export async function getStatus() {
   const bundles = server.bundleManager.getAllBundleInfo();
   const totalFiles = server.fileSystemManager.getAllFiles().length;
 
-  console.log('📊 cntx-ui Status');
+  console.log('cntx-ui Status');
   console.log('================');
   console.log(`Total files: ${totalFiles}`);
   console.log(`Bundles: ${bundles.length}`);
 
   bundles.forEach(bundle => {
-    console.log(`  • ${bundle.name}: ${bundle.fileCount} files (${Math.round(bundle.size / 1024)}KB)`);
+    console.log(`  - ${bundle.name}: ${bundle.fileCount} files (${Math.round(bundle.size / 1024)}KB)`);
   });
 
   return {
@@ -769,46 +676,10 @@ export async function getStatus() {
   };
 }
 
-export function setupMCP() {
-  const configPath = join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
-  const projectPath = process.cwd();
-
-  console.log('🔧 Setting up MCP integration...');
-  console.log(`Project: ${projectPath}`);
-  console.log(`Claude config: ${configPath}`);
-
-  try {
-    let config = {};
-    if (existsSync(configPath)) {
-      config = JSON.parse(readFileSync(configPath, 'utf8'));
-    }
-
-    if (!config.mcpServers) {
-      config.mcpServers = {};
-    }
-
-    config.mcpServers['cntx-ui'] = {
-      command: 'node',
-      args: [join(projectPath, 'bin', 'cntx-ui.js'), 'mcp'],
-      env: {}
-    };
-
-    // Ensure directory exists
-    mkdirSync(dirname(configPath), { recursive: true });
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
-
-    console.log('✅ MCP integration configured');
-    console.log('💡 Restart Claude Desktop to apply changes');
-  } catch (error) {
-    console.error('❌ Failed to setup MCP:', error.message);
-    console.log('💡 You may need to manually add the configuration to Claude Desktop');
-  }
-}
-
 // Auto-start server when run directly
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
-  console.log('🚀 Starting cntx-ui server...');
+  console.log('Starting cntx-ui server...');
   const server = new CntxServer();
   server.init();
   server.listen(3333, 'localhost');

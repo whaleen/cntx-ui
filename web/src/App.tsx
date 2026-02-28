@@ -2,13 +2,11 @@
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BundleList } from './components/BundleList'
-import { AIRulesManager } from './components/AIRulesManager'
 import { SystemStatus } from './components/SystemStatus'
 import { SemanticChunks } from './components/SemanticChunks'
 import { Button } from './components/ui/button'
 import {
   Boxes,
-  Sparkles,
   CheckCircle,
   HelpCircle,
   Settings,
@@ -51,11 +49,6 @@ const navigationItems = [
     id: 'settings',
     label: 'Settings',
     icon: Settings
-  },
-  {
-    id: 'ai-rules',
-    label: 'AI Rules',
-    icon: Sparkles
   },
   {
     id: 'system-status',
@@ -201,16 +194,6 @@ function App() {
               <p className="text-xs text-muted-foreground font-thin">Configure file visibility and bundle patterns</p>
             </div>
             <SystemSettings />
-          </div>
-        )
-      case 'ai-rules':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-lg font-thin tracking-tight">AI Rules</h1>
-              <p className="text-xs text-muted-foreground font-thin">Configure AI context and project guidelines</p>
-            </div>
-            <AIRulesManager />
           </div>
         )
       case 'system-status':

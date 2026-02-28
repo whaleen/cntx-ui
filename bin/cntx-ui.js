@@ -3,19 +3,19 @@
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { startServer, startMCPServer, generateBundle, initConfig, getStatus, setupMCP } from '../server.js';
+import { autoInitAndStart, startMCPServer, generateBundle, initConfig, getStatus } from '../server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packagePath = join(__dirname, '..', 'package.json');
 const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
 
 const args = process.argv.slice(2);
-const command = args[0] || 'help';
+const command = args[0] || 'start';
 const isVerbose = args.includes('--verbose');
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down cntx-ui...');
+  console.log('\n Shutting down cntx-ui...');
   process.exit(0);
 });
 
@@ -25,44 +25,30 @@ function showHelp() {
 ${packageJson.description}
 
 Usage:
-  cntx-ui <command> [options]
+  cntx-ui [command] [options]
 
 Commands:
+  (default)                   Auto-init if needed, then start web server
   init                        Initialize configuration in current directory
-  watch [port]                Start web server (default port: 3333)
   mcp                         Start MCP server (stdio transport)
   bundle [name]               Generate specific bundle (default: master)
   status                      Show current project status
-  setup-mcp                   Add this project to Claude Desktop MCP config
 
 Options:
   --verbose                   Enable detailed logging
-  --with-mcp                  Start web server with MCP status tracking
   --version, -v               Show version number
   --help, -h                  Show this help message
 
 Examples:
+  cntx-ui                     Start server (auto-inits if needed)
   cntx-ui init                Initialize a new project
-  cntx-ui watch               Start web server on port 3333
-  cntx-ui watch 8080          Start web server on port 8080
-  cntx-ui watch --verbose     Start with detailed logs
-  cntx-ui watch --with-mcp    Start with MCP integration
+  cntx-ui mcp                 Start MCP server on stdio
   cntx-ui bundle api          Generate 'api' bundle
   cntx-ui status              Show project status
-  cntx-ui setup-mcp           Configure Claude Desktop integration
 
 MCP Integration:
-  The MCP server provides AI-accessible bundle management for Claude Desktop
-  and other MCP-compatible clients. Use 'setup-mcp' to configure automatic
-  integration with Claude Desktop.
-
-Agent Collaboration:
-  To get an external agent up to speed with your project, use this prompt:
-
-  "I'm working in a project that uses cntx-ui for file organization and AI
-  collaboration. Please read this file to understand the project structure:
-
-  @.cntx/agent-instructions.md"
+  Running 'cntx-ui init' creates a .mcp.json file so Claude Code
+  can auto-discover the MCP server. Run 'cntx-ui mcp' for stdio mode.
 
 Repository: ${packageJson.repository.url}
 Author: ${packageJson.author}
@@ -84,17 +70,13 @@ async function main() {
     return showHelp();
   }
 
-  // Handle default command (watch if no command provided and no flags)
-  const actualCommand = command === 'help' ? 'watch' : command;
-
   try {
-    switch (actualCommand) {
+    switch (command) {
+      case 'start':
       case 'watch':
       case 'w':
         const port = parseInt(args[1]) || 3333;
-        // Enable MCP status tracking by default for the web dashboard
-        const withMcp = !args.includes('--no-mcp');
-        await startServer({ port, withMcp, verbose: isVerbose });
+        await autoInitAndStart({ port, verbose: isVerbose });
         break;
 
       case 'mcp':
@@ -107,9 +89,9 @@ async function main() {
         const bundleName = args[1] || 'master';
         try {
           await generateBundle(bundleName);
-          console.log(`✅ Bundle '${bundleName}' generated successfully`);
+          console.log(`Bundle '${bundleName}' generated successfully`);
         } catch (error) {
-          console.error(`❌ Failed to generate bundle '${bundleName}': ${error.message}`);
+          console.error(`Failed to generate bundle '${bundleName}': ${error.message}`);
           process.exit(1);
         }
         break;
@@ -124,17 +106,13 @@ async function main() {
         await getStatus();
         break;
 
-      case 'setup-mcp':
-        setupMCP();
-        break;
-
       default:
-        console.error(`❌ Unknown command: ${command}`);
+        console.error(`Unknown command: ${command}`);
         console.log('Run "cntx-ui --help" for usage information.');
         process.exit(1);
     }
   } catch (error) {
-    console.error(`❌ Error: ${error.message}`);
+    console.error(`Error: ${error.message}`);
     if (isVerbose) {
       console.error(error.stack);
     }

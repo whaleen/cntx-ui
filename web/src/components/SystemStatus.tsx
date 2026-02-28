@@ -44,8 +44,6 @@ const API_ENDPOINTS: Omit<EndpointStatus, 'status' | 'responseTime' | 'error'>[]
   { path: '/api/files', method: 'GET', description: 'Get file tree' },
   { path: '/api/semantic-chunks', method: 'GET', description: 'Get semantic analysis' },
   { path: '/api/vector-db/status', method: 'GET', description: 'Vector database status' },
-  { path: '/api/cursor-rules', method: 'GET', description: 'Cursor rules configuration' },
-  { path: '/api/claude-md', method: 'GET', description: 'Claude.md file content' },
   { path: '/api/mcp-status', method: 'GET', description: 'MCP server status' },
 ]
 
@@ -68,13 +66,6 @@ const MCP_TOOLS: Omit<MCPToolStatus, 'status' | 'error'>[] = [
   { name: 'get_semantic_chunks', description: 'Get function-level semantic chunks from the codebase', group: 'Semantic Analysis' },
   { name: 'get_semantic_chunks_filtered', description: 'Get semantic chunks filtered by purpose, type, complexity, or bundle', group: 'Semantic Analysis' },
   { name: 'analyze_bundle_suggestions', description: 'Analyze codebase and suggest optimal bundle organization', group: 'Semantic Analysis' },
-
-  // Agent Modes
-  { name: 'agent_discover', description: 'Agent Discovery Mode: Get comprehensive codebase overview', group: 'Agent Modes' },
-  { name: 'agent_query', description: 'Agent Query Mode: Answer specific questions about the codebase', group: 'Agent Modes' },
-  { name: 'agent_investigate', description: 'Agent Investigation Mode: Investigate existing implementations for a feature', group: 'Agent Modes' },
-  { name: 'agent_discuss', description: 'Agent Passive Mode: Engage in discussion about codebase architecture', group: 'Agent Modes' },
-  { name: 'agent_organize', description: 'Agent Project Organizer Mode: Setup and maintenance of project organization', group: 'Agent Modes' },
 
   // File Operations
   { name: 'read_file', description: 'Read contents of a specific file with bundle context and metadata', group: 'File Operations' },
