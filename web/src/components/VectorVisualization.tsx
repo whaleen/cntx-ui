@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { Network, DatabaseZap, Fingerprint, RotateCw } from 'lucide-react'
+import { Network, DatabaseZap, Fingerprint, RotateCw, ZoomIn, ZoomOut, Crosshair } from 'lucide-react'
 import * as d3 from 'd3'
+import { cn } from '@/lib/utils'
+import { Separator } from './ui/separator'
 
 interface ProjectionPoint {
   id: string
@@ -49,6 +51,7 @@ export function VectorVisualization() {
   const [selectedCode, setSelectedCode] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -117,9 +120,17 @@ export function VectorVisualization() {
         g.attr('transform', event.transform)
       })
 
+    zoomRef.current = zoom
     svg.call(zoom)
 
-    // Directory labels at centroids
+    // Background click to deselect
+    svg.on('click', (event) => {
+      if (event.target === svgRef.current) {
+        setSelectedPoint(null)
+      }
+    })
+
+    // Directory labels at centroids (Improved Legibility - Issue 6)
     const dirGroups = d3.group(points, d => d.directory)
     dirGroups.forEach((dirPoints, dir) => {
       if (dirPoints.length < 2 || dir === '.') return
@@ -129,9 +140,9 @@ export function VectorVisualization() {
         .attr('x', cx)
         .attr('y', cy)
         .attr('text-anchor', 'middle')
-        .attr('class', 'fill-muted-foreground/40')
-        .style('font-size', '9px')
-        .style('font-weight', '300')
+        .attr('class', 'fill-muted-foreground/70')
+        .style('font-size', '11px')
+        .style('font-weight', '500')
         .style('letter-spacing', '0.05em')
         .style('text-transform', 'uppercase')
         .style('pointer-events', 'none')
@@ -144,14 +155,16 @@ export function VectorVisualization() {
       .join('circle')
       .attr('cx', d => xScale(d.x))
       .attr('cy', d => yScale(d.y))
-      .attr('r', d => rScale(d.complexity))
+      .attr('r', d => selectedPoint?.id === d.id ? rScale(d.complexity) + 2 : rScale(d.complexity))
       .attr('fill', d => purposeColorVar(d.purpose))
-      .attr('opacity', 0.75)
-      .attr('stroke', 'transparent')
+      .attr('opacity', d => selectedPoint ? (selectedPoint.id === d.id ? 1 : 0.3) : 0.75)
+      .attr('stroke', d => selectedPoint?.id === d.id ? 'var(--foreground)' : 'transparent')
       .attr('stroke-width', 1.5)
       .style('cursor', 'pointer')
       .on('mouseenter', function (event, d) {
-        d3.select(this).attr('opacity', 1).attr('stroke', 'var(--foreground)')
+        if (!selectedPoint || selectedPoint.id === d.id) {
+          d3.select(this).attr('opacity', 1).attr('stroke', 'var(--foreground)')
+        }
         const rect = container.getBoundingClientRect()
         setTooltip({
           point: d,
@@ -167,15 +180,36 @@ export function VectorVisualization() {
           y: event.clientY - rect.top
         } : null)
       })
-      .on('mouseleave', function () {
-        d3.select(this).attr('opacity', 0.75).attr('stroke', 'transparent')
+      .on('mouseleave', function (event, d) {
+        if (!selectedPoint || selectedPoint.id !== d.id) {
+          d3.select(this).attr('opacity', selectedPoint ? 0.3 : 0.75).attr('stroke', 'transparent')
+        }
         setTooltip(null)
       })
-      .on('click', function (_event, d) {
+      .on('click', function (event, d) {
+        event.stopPropagation()
         setSelectedPoint(prev => prev?.id === d.id ? null : d)
       })
 
-  }, [data])
+  }, [data, selectedPoint])
+
+  const handleResetView = () => {
+    if (svgRef.current && zoomRef.current) {
+      d3.select(svgRef.current)
+        .transition()
+        .duration(750)
+        .call(zoomRef.current.transform, d3.zoomIdentity)
+    }
+  }
+
+  const handleZoom = (delta: number) => {
+    if (svgRef.current && zoomRef.current) {
+      d3.select(svgRef.current)
+        .transition()
+        .duration(300)
+        .call(zoomRef.current.scaleBy, delta)
+    }
+  }
 
   // Get visible purpose categories (ones that actually exist in data)
   const visiblePurposes = data ? (() => {
@@ -195,44 +229,70 @@ export function VectorVisualization() {
     <div className="w-full space-y-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-thin tracking-tight flex items-center gap-2">
-            <Network className="w-4 h-4 text-vesper-accent" />
+          <h1 className="text-lg  tracking-tight flex items-center gap-2">
+            <Network className="w-4 h-4 text-primary" />
             Semantic Landscape
           </h1>
-          <p className="text-xs text-muted-foreground font-thin">Visualizing the code's conceptual clusters</p>
+          <p className="text-xs text-muted-foreground ">Visualizing the code's conceptual clusters</p>
         </div>
         <div className="flex items-center gap-2">
           {data?.meta.cached && (
-            <Badge variant="outline" className="border-vesper font-thin text-[10px] uppercase tracking-widest">
+            <Badge variant="outline" className="border-border  text-[10px] uppercase tracking-widest">
               cached
             </Badge>
           )}
-          <Badge variant="outline" className="border-vesper font-thin text-[10px] uppercase tracking-widest">
+          <Badge variant="outline" className="border-border  text-[10px] uppercase tracking-widest">
             <DatabaseZap className="w-3 h-3 mr-1" />
             {data?.meta.totalPoints || 0} points
           </Badge>
           <button
             onClick={fetchData}
             disabled={loading}
-            className="p-1.5 rounded border border-vesper hover:bg-vesper-card/80 transition-colors disabled:opacity-50"
+            className="p-1.5 rounded border border-border hover:bg-card/80 transition-colors disabled:opacity-50"
           >
             <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </header>
 
-      <Card className="border-vesper bg-vesper-card overflow-hidden">
+      <Card className="border-border bg-card overflow-hidden relative">
+        {/* Toolbar - Issue 4 */}
+        {!isEmpty && !loading && (
+          <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+            <button
+              onClick={() => handleZoom(1.2)}
+              title="Zoom In"
+              className="p-2 bg-background/80 backdrop-blur-sm border border-border rounded-md hover:border-primary transition-colors shadow-sm"
+            >
+              <ZoomIn className="w-4 h-4 text-foreground" />
+            </button>
+            <button
+              onClick={() => handleZoom(0.8)}
+              title="Zoom Out"
+              className="p-2 bg-background/80 backdrop-blur-sm border border-border rounded-md hover:border-primary transition-colors shadow-sm"
+            >
+              <ZoomOut className="w-4 h-4 text-foreground" />
+            </button>
+            <button
+              onClick={handleResetView}
+              title="Reset View"
+              className="p-2 bg-background/80 backdrop-blur-sm border border-border rounded-md hover:border-primary transition-colors shadow-sm"
+            >
+              <Crosshair className="w-4 h-4 text-foreground" />
+            </button>
+          </div>
+        )}
         <div ref={containerRef} className="relative w-full h-[500px]">
           {isEmpty ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3 max-w-md text-center px-6">
                 <Network className="w-10 h-10 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground font-thin">
+                <p className="text-sm text-muted-foreground ">
                   No vector embeddings found. Embeddings are generated automatically during{' '}
                   <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded">cntx-ui watch</code>{' '}
                   when semantic analysis runs.
                 </p>
-                <p className="text-xs text-muted-foreground/60 font-thin">
+                <p className="text-xs text-muted-foreground/60 ">
                   Start the watcher in your project directory and wait for the initial analysis to complete.
                 </p>
               </div>
@@ -243,21 +303,21 @@ export function VectorVisualization() {
 
           {tooltip && (
             <div
-              className="absolute z-50 bg-background/95 border border-vesper p-3 rounded shadow-xl pointer-events-none"
+              className="absolute z-50 bg-background/95 border border-border p-3 rounded shadow-xl pointer-events-none"
               style={{
                 left: Math.min(tooltip.x + 12, (containerRef.current?.clientWidth || 400) - 280),
                 top: Math.min(tooltip.y + 12, 400)
               }}
             >
               <div className="flex items-center gap-2 mb-1">
-                <Fingerprint className="w-3 h-3 text-vesper-accent" />
+                <Fingerprint className="w-3 h-3 text-primary" />
                 <span className="text-xs font-bold">{tooltip.point.name}</span>
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mb-2">{tooltip.point.filePath}</div>
               <div className="text-[11px] line-clamp-2 max-w-[250px]">{tooltip.point.purpose}</div>
               <div className="mt-2 flex gap-2 flex-wrap">
-                <Badge variant="outline" className="text-[9px] border-vesper">{tooltip.point.semanticType}</Badge>
-                <Badge variant="outline" className="text-[9px] border-vesper">Complexity: {tooltip.point.complexity}</Badge>
+                <Badge variant="outline" className="text-[9px] border-border">{tooltip.point.semanticType}</Badge>
+                <Badge variant="outline" className="text-[9px] border-border">Complexity: {tooltip.point.complexity}</Badge>
               </div>
             </div>
           )}
@@ -265,8 +325,39 @@ export function VectorVisualization() {
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-2">
-                <Network className="w-8 h-8 animate-pulse text-vesper-accent" />
-                <span className="text-xs font-thin tracking-widest uppercase">Projecting Intelligence...</span>
+                <Network className="w-8 h-8 animate-pulse text-primary" />
+                <span className="text-xs  tracking-widest uppercase">Projecting Intelligence...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Legend Overlay - Issue 2 & 3 */}
+          {!isEmpty && !loading && visiblePurposes.length > 0 && (
+            <div className="absolute bottom-4 left-4 z-10 p-3 bg-background/80 backdrop-blur-sm border border-border rounded-lg shadow-sm max-w-[200px] space-y-3">
+              <div className="space-y-1.5">
+                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-2">Semantic Types</p>
+                {visiblePurposes.map(({ category }) => (
+                  <div key={category} className="flex items-center gap-2">
+                    <div
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: `var(--color-semantic-${category})` }}
+                    />
+                    <span className="text-[10px] capitalize truncate">
+                      {category.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Separator className="bg-border/50" />
+              <div className="space-y-2">
+                <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Size Encoding</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-end gap-1 px-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+                    <div className="w-3 h-3 rounded-full bg-muted-foreground/40" />
+                  </div>
+                  <span className="text-[10px]">Circle size = Complexity</span>
+                </div>
               </div>
             </div>
           )}
@@ -275,10 +366,10 @@ export function VectorVisualization() {
 
       {/* Selected point detail panel */}
       {selectedPoint && (
-        <Card className="border-vesper bg-vesper-card p-4">
+        <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Fingerprint className="w-4 h-4 text-vesper-accent" />
+              <Fingerprint className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium">{selectedPoint.name}</span>
             </div>
             <button
@@ -290,9 +381,9 @@ export function VectorVisualization() {
           </div>
           <div className="text-xs text-muted-foreground font-mono mb-2">{selectedPoint.filePath}</div>
           <div className="flex gap-2 mb-3 flex-wrap">
-            <Badge variant="outline" className="text-[9px] border-vesper">{selectedPoint.semanticType}</Badge>
-            <Badge variant="outline" className="text-[9px] border-vesper">{selectedPoint.purpose}</Badge>
-            <Badge variant="outline" className="text-[9px] border-vesper">Complexity: {selectedPoint.complexity}</Badge>
+            <Badge variant="outline" className="text-[9px] border-border">{selectedPoint.semanticType}</Badge>
+            <Badge variant="outline" className="text-[9px] border-border">{selectedPoint.purpose}</Badge>
+            <Badge variant="outline" className="text-[9px] border-border">Complexity: {selectedPoint.complexity}</Badge>
           </div>
           {selectedCode && (
             <pre className="text-[11px] font-mono bg-muted/30 rounded p-3 overflow-x-auto max-h-[300px] overflow-y-auto leading-relaxed">
@@ -301,27 +392,6 @@ export function VectorVisualization() {
             </pre>
           )}
         </Card>
-      )}
-
-      {/* Legend */}
-      {visiblePurposes.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {visiblePurposes.map(({ category, count }) => (
-            <div
-              key={category}
-              className="flex items-center gap-1.5 px-2 py-1 border border-vesper rounded bg-vesper-card/50"
-            >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: `var(--color-semantic-${category})` }}
-              />
-              <span className="text-[10px] uppercase tracking-widest font-thin">
-                {category.replace(/_/g, ' ')}
-              </span>
-              <span className="text-[9px] text-muted-foreground">{count}</span>
-            </div>
-          ))}
-        </div>
       )}
     </div>
   )

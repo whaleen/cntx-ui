@@ -26,7 +26,7 @@ const FileAnalysis: React.FC<FileAnalysisProps> = ({
           <AlertTriangle className="w-3 h-3" />
           Files Needing Bundle Assignment ({undercategorizedFiles.length})
         </CardTitle>
-        <p className="text-xs text-muted-foreground font-thin">
+        <p className="text-xs text-muted-foreground ">
           These files are only in the 'master' bundle and should be assigned to more specific bundles for better organization.
         </p>
       </CardHeader>

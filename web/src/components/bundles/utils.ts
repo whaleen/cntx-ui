@@ -17,13 +17,15 @@ export const useFileSizes = () => {
   const { data: fileSizes = {} } = useQuery({
     queryKey: ['fileSizes'],
     queryFn: async () => {
-      const response = await fetch('http://localhost:3333/api/files')
+      const response = await fetch('/api/files')
       if (!response.ok) throw new Error('Failed to fetch files')
       const files = await response.json()
       const sizes: Record<string, number> = {}
-      files.forEach((file: any) => {
-        sizes[file.path] = file.size || 0
-      })
+      if (Array.isArray(files)) {
+        files.forEach((file: any) => {
+          sizes[file.path] = file.size || 0
+        })
+      }
       return sizes
     },
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -168,20 +170,21 @@ export const getFileIconConfig = (fileName: string) => {
 // Check if a file is only in the master bundle
 export const isFileOnlyInMaster = (filePath: string, bundles: any[]) => {
   const fileBundles = bundles
-    .filter((bundle) => bundle.files.includes(filePath))
+    .filter((bundle) => bundle && Array.isArray(bundle.files) && bundle.files.includes(filePath))
     .map((b) => b.name)
   return fileBundles.length === 1 && fileBundles[0] === 'master'
 }
 
 // Check if a bundle has unassigned files
 export const hasUnassignedFiles = (bundle: any, bundles: any[]) => {
+  if (!bundle || !Array.isArray(bundle.files)) return false;
   return bundle.files.some((file: string) => isFileOnlyInMaster(file, bundles))
 }
 
 // Get undercategorized files
 export const getUndercategorizedFiles = (bundles: any[]) => {
   return bundles
-    .filter((bundle) => bundle.name === 'master')
+    .filter((bundle) => bundle && bundle.name === 'master' && Array.isArray(bundle.files))
     .flatMap((bundle) =>
       bundle.files
         .filter((file: string) => isFileOnlyInMaster(file, bundles))

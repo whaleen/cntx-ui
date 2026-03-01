@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { X, Boxes, TreePine, BarChart3, AlertTriangle } from 'lucide-react'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { toast } from '@/lib/toast'
+import { toast } from 'sonner'
 
 // Import new bundle components
 import {
@@ -15,17 +15,18 @@ import {
   ProjectFiles,
   FileAnalysis,
   useFileSizes,
+  getUndercategorizedFiles,
   type Bundle,
 } from './bundles'
 
 const fetchBundles = async (): Promise<Bundle[]> => {
-  const response = await fetch('http://localhost:3333/api/bundles')
+  const response = await fetch('/api/bundles')
   if (!response.ok) throw new Error('Failed to fetch bundles')
   return response.json()
 }
 
 const fetchAllFiles = async (): Promise<string[]> => {
-  const response = await fetch('http://localhost:3333/api/files')
+  const response = await fetch('/api/files')
   if (!response.ok) throw new Error('Failed to fetch files')
   const fileData = await response.json()
   return fileData.map((f: any) => f.path)
@@ -67,7 +68,9 @@ export function BundleList() {
 
   // WebSocket connection for real-time bundle updates
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:3333')
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.hostname}:3333`
+    const ws = new WebSocket(wsUrl)
 
     ws.onopen = () => {
       console.log('Bundle updates WebSocket connected')
@@ -140,6 +143,46 @@ export function BundleList() {
     setSelectedBundle(selectedBundle === bundleName ? null : bundleName)
   }, [selectedBundle])
 
+  const setButtonState = useCallback((key: string, state: 'loading' | 'idle') => {
+    setLoadingButtons(prev => {
+      const next = new Set(prev)
+      if (state === 'loading') next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }, [])
+
+  const addFileToBundle = async (filePath: string, bundleName: string) => {
+    try {
+      const response = await fetch('/api/config')
+      if (!response.ok) throw new Error('Failed to fetch config')
+      const config = await response.json()
+      
+      const bundles = config.bundles || {}
+      if (!bundles[bundleName]) {
+        bundles[bundleName] = []
+      }
+      
+      // Add explicit file path to bundle patterns
+      if (!bundles[bundleName].includes(filePath)) {
+        bundles[bundleName].push(filePath)
+      }
+      
+      const saveResponse = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...config, bundles })
+      })
+      
+      if (!saveResponse.ok) throw new Error('Failed to save config')
+      
+      toast.success(`Added ${filePath} to ${bundleName}`)
+      queryClient.invalidateQueries({ queryKey: ['bundles'] })
+    } catch (err: any) {
+      toast.error(`Failed to add file: ${err.message}`)
+    }
+  }
+
   // Memoize bundle processing to avoid recalculating on every render
   const processedBundles = useMemo(() => {
     return bundles.map((bundle) => {
@@ -167,9 +210,15 @@ export function BundleList() {
             <TreePine className="w-4 h-4 text-muted-foreground/75" />
             Project Files
           </TabsTrigger>
-          <TabsTrigger value="analysis" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="analysis" 
+            className="flex items-center gap-2 opacity-40 cursor-not-allowed pointer-events-none"
+            disabled
+            aria-disabled="true"
+          >
             <BarChart3 className="w-4 h-4 text-muted-foreground/75" />
             File Analysis
+            <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 uppercase tracking-tighter">Soon</Badge>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="bundles" className="flex-1 overflow-y-auto">
@@ -190,11 +239,22 @@ export function BundleList() {
         <TabsContent value="files" className="space-y-4">
           <ProjectFiles />
         </TabsContent>
-        <TabsContent value="analysis" className="space-y-4">
-          <div className="text-center py-12 text-muted-foreground">
+        <TabsContent value="analysis" className="space-y-6">
+          <FileAnalysis 
+            undercategorizedFiles={getUndercategorizedFiles(bundles)}
+            bundles={bundles}
+            addFileToBundle={addFileToBundle}
+            loadFileAnalysis={() => queryClient.invalidateQueries({ queryKey: ['bundles'] })}
+            loadingButtons={loadingButtons}
+            setButtonState={setButtonState}
+            onRemoveFile={() => queryClient.invalidateQueries({ queryKey: ['bundles'] })}
+            fileSizes={fileSizes}
+          />
+          
+          <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed">
             <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-20" />
-            <p className="text-sm font-thin uppercase tracking-widest">Semantic Analysis Active</p>
-            <p className="text-xs mt-2 opacity-50">Viewing automated context mapping...</p>
+            <p className="text-sm  uppercase tracking-widest">More Insights Coming Soon</p>
+            <p className="text-xs mt-2 opacity-50">Complexity analysis and semantic role mapping are being finalized.</p>
           </div>
         </TabsContent>
       </Tabs>
@@ -205,9 +265,9 @@ export function BundleList() {
         if (!selectedBundleData) return null
 
         return (
-          <div className="fixed top-0 left-0 right-0 bottom-10 z-50 bg-background flex flex-col">
+          <div className="fixed top-0 left-0 right-0 bottom-10 z-50 bg-background flex flex-col border-l shadow-2xl animate-in slide-in-from-right duration-300">
             <div className="sticky top-0 bg-background border-b p-4 flex justify-between items-center flex-shrink-0">
-              <h3 className="font-thin text-sm flex items-center gap-2">
+              <h3 className=" text-sm flex items-center gap-2">
                 <Boxes className="w-4 h-4 text-muted-foreground" />
                 {selectedBundle} Details
               </h3>
@@ -217,12 +277,18 @@ export function BundleList() {
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto p-6">
                <div className="space-y-4">
-                  <h4 className="text-xs font-thin uppercase tracking-widest color-vesper-muted">Included Files</h4>
-                  <ul className="list-none pl-0 space-y-1">
-                    {selectedBundleData.files?.map((file: string) => (
-                      <li key={file} className="text-xs font-thin mono py-1 border-b border-vesper/50">{file}</li>
-                    ))}
-                  </ul>
+                  <h4 className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">Included Files</h4>
+                  {!selectedBundleData.files || selectedBundleData.files.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg bg-muted/5">
+                      <p className="text-sm">No files included in this bundle.</p>
+                    </div>
+                  ) : (
+                    <ul className="list-none pl-0 space-y-1">
+                      {selectedBundleData.files.map((file: string) => (
+                        <li key={file} className="text-xs mono py-1 border-b border-border/50">{file}</li>
+                      ))}
+                    </ul>
+                  )}
                </div>
             </div>
           </div>

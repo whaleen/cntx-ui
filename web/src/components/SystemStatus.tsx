@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { Alert, AlertDescription } from './ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { CheckCircle, AlertTriangle, Info, Server, Database, Zap, TestTube, RefreshCw, Play } from 'lucide-react'
-import { toast } from '@/lib/toast'
+import { toast } from 'sonner'
 
 interface ServerStatus {
   uptime: number
@@ -73,7 +73,7 @@ const MCP_TOOLS: Omit<MCPToolStatus, 'status' | 'error'>[] = [
 ]
 
 const fetchServerStatus = async (): Promise<ServerStatus> => {
-  const response = await fetch('http://localhost:3333/api/status')
+  const response = await fetch('/api/status')
   if (!response.ok) throw new Error('Failed to fetch server status')
   return response.json()
 }
@@ -104,7 +104,7 @@ const testMCPTool = async (tool: Omit<MCPToolStatus, 'status' | 'error'>): Promi
   try {
     // For now, just check if MCP status endpoint is available
     // In a real implementation, you'd call the actual MCP tools
-    const response = await fetch('http://localhost:3333/api/mcp-status')
+    const response = await fetch('/api/mcp-status')
     if (response.ok) {
       const data = await response.json()
       if (data.enabled) {
@@ -250,19 +250,19 @@ export function SystemStatus() {
   const testSingleEndpoint = async (endpoint: Omit<EndpointStatus, 'status' | 'responseTime' | 'error'>) => {
     const startTime = Date.now()
     try {
-      const response = await fetch(`http://localhost:3333${endpoint.path}`)
+      const response = await fetch(`${endpoint.path}`)
       const responseTime = Date.now() - startTime
 
       if (response.ok) {
         const data = await response.json()
         const summary = formatResponseForToast(data, endpoint.path)
-        toast.success(`${endpoint.path} (${responseTime}ms)`, summary)
+        toast.success(`${endpoint.path} (${responseTime}ms)`, { description: summary })
       } else {
-        toast.error(`${endpoint.path} failed`, `HTTP ${response.status} (${responseTime}ms)`)
+        toast.error(`${endpoint.path} failed`, { description: `HTTP ${response.status} (${responseTime}ms)` })
       }
     } catch (error) {
       const responseTime = Date.now() - startTime
-      toast.error(`${endpoint.path} error`, `${error instanceof Error ? error.message : 'Unknown error'} (${responseTime}ms)`)
+      toast.error(`${endpoint.path} error`, { description: `${error instanceof Error ? error.message : 'Unknown error'} (${responseTime}ms)` })
     }
   }
 
@@ -284,7 +284,7 @@ export function SystemStatus() {
       <Card>
         <CardContent className="p-4">
           <div className="text-center space-y-2">
-            <AlertTriangle className="h-6 w-6 mx-auto text-red-500" />
+            <AlertTriangle className="h-6 w-6 mx-auto text-destructive" />
             <p className="text-sm font-medium">Failed to connect to server</p>
             <p className="text-xs text-muted-foreground">
               Make sure the cntx-ui server is running on localhost:3333
@@ -307,7 +307,7 @@ export function SystemStatus() {
           <CardTitle className="flex items-center gap-2">
             <Server className="w-5 h-5" />
             Server Status
-            <CheckCircle className="w-4 h-4 text-green-600" />
+            <CheckCircle className="w-4 h-4 text-success" />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -407,10 +407,10 @@ export function SystemStatus() {
                               {testResult.responseTime}ms
                             </span>
                             {testResult.status === 'success' ? (
-                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              <CheckCircle className="w-4 h-4 text-success" />
                             ) : testResult.status === 'error' ? (
                               <div title={testResult.error}>
-                                <AlertTriangle className="w-4 h-4 text-red-600" />
+                                <AlertTriangle className="w-4 h-4 text-destructive" />
                               </div>
                             ) : (
                               <div className="w-4 h-4 bg-gray-300 rounded-full" />
@@ -491,10 +491,10 @@ export function SystemStatus() {
                               <div className="flex items-center gap-2">
                                 {testResult ? (
                                   testResult.status === 'available' ? (
-                                    <CheckCircle className="w-4 h-4 text-green-600" />
+                                    <CheckCircle className="w-4 h-4 text-success" />
                                   ) : (
                                     <div title={testResult.error}>
-                                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                                      <AlertTriangle className="w-4 h-4 text-destructive" />
                                     </div>
                                   )
                                 ) : (
@@ -523,10 +523,10 @@ export function SystemStatus() {
                           <div className="flex items-center gap-2">
                             {testResult ? (
                               testResult.status === 'available' ? (
-                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                <CheckCircle className="w-4 h-4 text-success" />
                               ) : (
                                 <div title={testResult.error}>
-                                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                                  <AlertTriangle className="w-4 h-4 text-destructive" />
                                 </div>
                               )
                             ) : (

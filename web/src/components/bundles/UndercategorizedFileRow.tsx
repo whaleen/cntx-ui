@@ -7,7 +7,7 @@ import { Input } from '../ui/input'
 import { Loader2, File, ExternalLink, Plus } from 'lucide-react'
 import type { UndercategorizedFileRowProps } from './types'
 import { useBundleSuggestions, formatFileSize, getFileIconConfig } from './utils'
-import { toast } from '@/lib/toast'
+import { toast } from 'sonner'
 
 export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = ({
   fileInfo,
@@ -79,7 +79,7 @@ export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = (
 
   const handleIgnore = async () => {
     setButtonState(`ignore-${fileInfo.path}`, 'loading')
-    await fetch('http://localhost:3333/api/hidden-files', {
+    await fetch('/api/hidden-files', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -99,7 +99,7 @@ export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = (
 
   const openInEditor = async (filePath: string) => {
     try {
-      const response = await fetch('http://localhost:3333/api/open-file', {
+      const response = await fetch('/api/open-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath })
@@ -130,7 +130,7 @@ export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = (
           onClick={() => openInEditor(fileInfo.path)}
           title={`Open ${fileInfo.path} in editor`}
         >
-          <span className="text-xs text-muted-foreground font-thin group-hover/file-link:text-foreground/70 transition-colors duration-200">{filePath}</span>
+          <span className="text-xs text-muted-foreground  group-hover/file-link:text-foreground/70 transition-colors duration-200">{filePath}</span>
           <span className="text-xs text-foreground font-medium group-hover/file-link:text-primary transition-colors duration-200">{fileName}</span>
           <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover/file-link:opacity-100 transition-opacity duration-200 flex-shrink-0" />
         </div>
@@ -157,7 +157,7 @@ export const UndercategorizedFileRow: React.FC<UndercategorizedFileRowProps> = (
                 <Badge 
                   key={`suggestion-${bundle}`} 
                   variant="outline" 
-                  className="text-xs font-thin h-4 px-1.5 bg-primary/10 cursor-pointer hover:bg-primary/20 transition-colors duration-200 flex items-center gap-1"
+                  className="text-xs  h-4 px-1.5 bg-primary/10 cursor-pointer hover:bg-primary/20 transition-colors duration-200 flex items-center gap-1"
                   onClick={() => handleAddToBundle(bundle)}
                   title={`Add to ${bundle} bundle`}
                 >

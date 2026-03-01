@@ -8,7 +8,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../ui/resi
 import type { BundleDetailViewProps } from './types'
 import { formatFileSize, getFileIconConfig } from './utils'
 // import { useToast } from '@/hooks/use-toast'
-import { toast } from '@/lib/toast'
+import { toast } from 'sonner'
 
 const BundleDetails: React.FC<BundleDetailViewProps> = ({
   bundle,
@@ -279,7 +279,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
 
   const openInEditor = useCallback(async (filePath: string) => {
     try {
-      const response = await fetch('http://localhost:3333/api/open-file', {
+      const response = await fetch('/api/open-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath })
@@ -317,7 +317,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
                 <SelectTrigger className="w-fit border-0 p-0 h-auto bg-transparent hover:bg-muted/50 focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
                   <SelectValue>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-thin">{currentBundle.name}</h3>
+                      <h3 className="text-lg ">{currentBundle.name}</h3>
                       <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isBundleSelectorOpen ? 'rotate-180' : ''}`} />
                     </div>
                   </SelectValue>
@@ -338,7 +338,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
                 </SelectContent>
               </Select>
             ) : (
-              <h3 className="text-lg font-thin">{currentBundle.name}</h3>
+              <h3 className="text-lg ">{currentBundle.name}</h3>
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>{currentBundle.fileCount} files</span>
@@ -369,7 +369,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
           <ResizablePanel defaultSize={editingBundles.has(currentBundle.name) ? 60 : 100} minSize={20}>
             <div className="space-y-2 h-full">
               <div className="flex items-center gap-2 flex-wrap pt-6">
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-thin h-5">
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs  h-5">
                   Bundle Files
                 </Badge>
                 <span className="text-xs text-muted-foreground">
@@ -453,7 +453,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
                             onClick={() => openInEditor(file)}
                             title={`Open ${file} in editor`}
                           >
-                            <span className="text-xs text-muted-foreground font-thin group-hover/file-link:text-foreground/70 transition-colors duration-200">{filePath}</span>
+                            <span className="text-xs text-muted-foreground  group-hover/file-link:text-foreground/70 transition-colors duration-200">{filePath}</span>
                             <span className="text-xs text-foreground font-medium group-hover/file-link:text-primary transition-colors duration-200">{fileName}</span>
                             <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover/file-link:opacity-100 transition-opacity duration-200 flex-shrink-0" />
                           </div>
@@ -465,7 +465,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
                           {fileBundles.length > 0 && (
                             <div className="flex gap-1 flex-wrap">
                               {fileBundles.map(bundleName => (
-                                <Badge key={bundleName} variant="outline" className="text-xs font-thin h-4 px-1.5">
+                                <Badge key={bundleName} variant="outline" className="text-xs  h-4 px-1.5">
                                   {bundleName}
                                 </Badge>
                               ))}
@@ -487,7 +487,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
               <ResizablePanel defaultSize={40} minSize={20}>
                 <div className="space-y-2 h-full">
                   <div className="flex items-center gap-2 flex-wrap pt-6">
-                    <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-xs font-thin h-5">
+                    <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-xs  h-5">
                       <Plus className="w-2.5 h-2.5 mr-1" />
                       Available Files
                     </Badge>
@@ -568,7 +568,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
                                 onClick={() => openInEditor(file)}
                                 title={`Open ${file} in editor`}
                               >
-                                <span className="text-xs text-muted-foreground font-thin group-hover/file-link:text-foreground/70 transition-colors duration-200">{filePath}</span>
+                                <span className="text-xs text-muted-foreground  group-hover/file-link:text-foreground/70 transition-colors duration-200">{filePath}</span>
                                 <span className="text-xs text-foreground font-medium group-hover/file-link:text-primary transition-colors duration-200">{fileName}</span>
                                 <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover/file-link:opacity-100 transition-opacity duration-200 flex-shrink-0" />
                               </div>
@@ -580,7 +580,7 @@ const BundleDetails: React.FC<BundleDetailViewProps> = ({
                               {fileBundles.length > 0 && (
                                 <div className="flex gap-1 flex-wrap">
                                   {fileBundles.map(bundleName => (
-                                    <Badge key={bundleName} variant="outline" className="text-xs font-thin h-4 px-1.5">
+                                    <Badge key={bundleName} variant="outline" className="text-xs  h-4 px-1.5">
                                       {bundleName}
                                     </Badge>
                                   ))}

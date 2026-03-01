@@ -5,19 +5,19 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { FileText, Save, RotateCcw, Copy, ExternalLink } from 'lucide-react'
-import { toast } from '@/lib/toast'
+import { toast } from 'sonner'
 import { EditorPreference } from './EditorPreference'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
 
 // API functions
 const fetchFileContent = async (endpoint: string): Promise<string> => {
-  const response = await fetch(`http://localhost:3333/api/${endpoint}`)
+  const response = await fetch(`/api/${endpoint}`)
   if (!response.ok) throw new Error(`Failed to fetch ${endpoint} file`)
   return response.text()
 }
 
 const saveFileContent = async ({ endpoint, content }: { endpoint: string, content: string }) => {
-  const response = await fetch(`http://localhost:3333/api/${endpoint}`, {
+  const response = await fetch(`/api/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content })
@@ -79,7 +79,7 @@ function FileEditorView({ fileType, endpoint, filePath }: { fileType: string, en
 
   const openInEditor = async () => {
     try {
-      const response = await fetch('http://localhost:3333/api/open-file', {
+      const response = await fetch('/api/open-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath })
@@ -98,7 +98,7 @@ function FileEditorView({ fileType, endpoint, filePath }: { fileType: string, en
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
+        <CardTitle className="flex items-center gap-2 text-sm ">
           <FileText className="w-4 h-4" />
           {fileType}
         </CardTitle>

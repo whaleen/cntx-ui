@@ -5,18 +5,18 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { toast } from '@/lib/toast'
+import { toast } from 'sonner'
 import { Save, Settings } from 'lucide-react'
 
 // API functions
 const fetchConfig = async (): Promise<any> => {
-  const response = await fetch('http://localhost:3333/api/config')
+  const response = await fetch('/api/config')
   if (!response.ok) throw new Error('Failed to fetch config')
   return response.json()
 }
 
 const saveConfig = async (config: any) => {
-  const response = await fetch('http://localhost:3333/api/config', {
+  const response = await fetch('/api/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config)
@@ -66,7 +66,7 @@ export function EditorPreference() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-thin">
+        <CardTitle className="flex items-center gap-2 text-sm ">
           <Settings className="w-4 h-4" />
           Editor Preference
         </CardTitle>

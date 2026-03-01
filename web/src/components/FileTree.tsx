@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ChevronDown, ChevronRight, File, Folder, FolderOpen } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -20,7 +20,7 @@ interface Bundle {
 }
 
 const fetchBundles = async (): Promise<Bundle[]> => {
-  const response = await fetch('http://localhost:3333/api/bundles')
+  const response = await fetch('/api/bundles')
   if (!response.ok) throw new Error('Failed to fetch bundles')
   return response.json()
 }
@@ -30,62 +30,93 @@ const buildFileTree = (bundles: Bundle[]): FileNode => {
   const allFiles = new Set<string>()
   const fileBundleMap = new Map<string, string[]>()
 
-  // Collect all files and their bundle associations
-  bundles.forEach(bundle => {
-    bundle.files.forEach(file => {
-      allFiles.add(file)
-      if (!fileBundleMap.has(file)) {
-        fileBundleMap.set(file, [])
-      }
-      fileBundleMap.get(file)!.push(bundle.name)
-    })
-  })
-
-  // Build tree structure
-  allFiles.forEach(filePath => {
-    const parts = filePath.split('/')
-    let current = root
-
-    parts.forEach((part, index) => {
-      const isFile = index === parts.length - 1
-      const currentPath = parts.slice(0, index + 1).join('/')
-
-      if (!current.children) current.children = []
-
-      let existing = current.children.find(child => child.name === part)
-
-      if (!existing) {
-        existing = {
-          name: part,
-          path: currentPath,
-          type: isFile ? 'file' : 'directory',
-          children: isFile ? undefined : [],
-          bundles: isFile ? fileBundleMap.get(filePath) : undefined
+  try {
+    // Collect all files and their bundle associations
+    bundles.forEach(bundle => {
+      if (!bundle || !Array.isArray(bundle.files)) return;
+      
+      bundle.files.forEach(file => {
+        if (!file || typeof file !== 'string') return;
+        allFiles.add(file)
+        if (!fileBundleMap.has(file)) {
+          fileBundleMap.set(file, [])
         }
-        current.children.push(existing)
-      }
-
-      if (!isFile) {
-        current = existing
-      }
-    })
-  })
-
-  // Sort: directories first, then files, alphabetically
-  const sortChildren = (node: FileNode) => {
-    if (node.children) {
-      node.children.sort((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === 'directory' ? -1 : 1
-        }
-        return a.name.localeCompare(b.name)
+        fileBundleMap.get(file)!.push(bundle.name)
       })
-      node.children.forEach(sortChildren)
-    }
-  }
+    })
 
-  sortChildren(root)
+    // Build tree structure
+    allFiles.forEach(filePath => {
+      const parts = filePath.split('/').filter(Boolean)
+      let current = root
+
+      parts.forEach((part, index) => {
+        const isFile = index === parts.length - 1
+        const currentPath = parts.slice(0, index + 1).join('/')
+
+        if (!current.children) current.children = []
+
+        let existing = current.children.find(child => child.name === part)
+
+        if (!existing) {
+          existing = {
+            name: part,
+            path: currentPath,
+            type: isFile ? 'file' : 'directory',
+            children: isFile ? undefined : [],
+            bundles: isFile ? fileBundleMap.get(filePath) : undefined
+          }
+          current.children.push(existing)
+        }
+
+        if (!isFile) {
+          current = existing
+        }
+      })
+    })
+
+    // Sort: directories first, then files, alphabetically
+    const sortChildren = (node: FileNode) => {
+      if (node.children) {
+        node.children.sort((a, b) => {
+          if (a.type !== b.type) {
+            return a.type === 'directory' ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
+        node.children.forEach(sortChildren)
+      }
+    }
+
+    sortChildren(root)
+  } catch (e) {
+    console.error('Error building file tree:', e)
+  }
   return root
+}
+
+const getFileIcon = (filename: string) => {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  const iconClass = "w-4 h-4"
+
+  switch (ext) {
+    case 'js':
+    case 'ts':
+    case 'jsx':
+    case 'tsx':
+      return <File className={`${iconClass} text-warning`} />
+    case 'json':
+      return <File className={`${iconClass} text-success`} />
+    case 'md':
+      return <File className={`${iconClass} text-info`} />
+    case 'css':
+    case 'scss':
+      return <File className={`${iconClass} text-primary`} />
+    case 'html':
+      return <File className={`${iconClass} text-primary`} />
+    default:
+      return <File className={`${iconClass} text-muted-foreground`} />
+  }
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -105,14 +136,13 @@ interface FileTreeNodeProps {
 
 function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodeProps) {
   const isExpanded = expandedDirs.has(node.path)
-  const indent = level * 16
+  const indent = level * 12
 
   if (node.type === 'directory') {
     return (
       <div>
         <div
-          className="flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded cursor-pointer"
-          style={{ paddingLeft: `${indent + 8}px` }}
+          className="flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded transition-colors cursor-pointer"
           onClick={() => onToggleDir(node.path)}
         >
           {isExpanded ? (
@@ -121,11 +151,11 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           )}
           {isExpanded ? (
-            <FolderOpen className="w-4 h-4 text-[color:var(--color-info)]" />
+            <FolderOpen className="w-4 h-4 text-primary" />
           ) : (
-            <Folder className="w-4 h-4 text-[color:var(--color-info)]" />
+            <Folder className="w-4 h-4 text-primary" />
           )}
-          <span className="text-xs font-thin">{node.name}</span>
+          <span className="text-xs ">{node.name}</span>
           {node.children && (
             <span className="text-xs text-muted-foreground ml-auto">
               {node.children.length} items
@@ -134,7 +164,7 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
         </div>
 
         {isExpanded && node.children && (
-          <div>
+          <div className="ml-4 border-l border-border/50 pl-2">
             {node.children.map((child) => (
               <FileTreeNode
                 key={child.path}
@@ -150,35 +180,9 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
     )
   }
 
-  // File node
-  const getFileIcon = (filename: string) => {
-    const ext = filename.split('.').pop()?.toLowerCase()
-    const iconClass = "w-4 h-4"
-
-    switch (ext) {
-      case 'js':
-      case 'ts':
-      case 'jsx':
-      case 'tsx':
-        return <File className={`${iconClass} text-[color:var(--color-warning)]`} />
-      case 'json':
-        return <File className={`${iconClass} text-[color:var(--color-success)]`} />
-      case 'md':
-        return <File className={`${iconClass} text-[color:var(--color-info)]/80`} />
-      case 'css':
-      case 'scss':
-        return <File className={`${iconClass} text-[color:var(--color-type-styles)]`} />
-      case 'html':
-        return <File className={`${iconClass} text-[color:var(--color-type-configuration)]`} />
-      default:
-        return <File className={`${iconClass} text-muted-foreground`} />
-    }
-  }
-
   return (
     <div
-      className="flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded"
-      style={{ paddingLeft: `${indent + 24}px` }}
+      className="flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded transition-colors ml-6"
     >
       {getFileIcon(node.name)}
       <span className="text-xs font-mono">{node.name}</span>
@@ -208,7 +212,7 @@ function FileTreeNode({ node, level, expandedDirs, onToggleDir }: FileTreeNodePr
 
 export function FileTree() {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set(['']))
-  // wtf is this shit broseph? 
+   
   // const [showUnbundled, setShowUnbundled] = useState(false)
 
   const { data: bundles, isLoading } = useQuery({
@@ -250,8 +254,8 @@ export function FileTree() {
   if (isLoading) return <div>Loading file tree...</div>
   if (!bundles) return <div>No bundles found</div>
 
-  const tree = buildFileTree(bundles)
-  const totalFiles = bundles.reduce((acc, bundle) => acc + bundle.files.length, 0)
+  const tree = useMemo(() => buildFileTree(bundles), [bundles])
+  const totalFiles = useMemo(() => bundles.reduce((acc, bundle) => acc + (bundle.files?.length || 0), 0), [bundles])
 
   return (
     <div className="space-y-4">
@@ -266,7 +270,7 @@ export function FileTree() {
           </Button>
         </div>
 
-        <div className="text-xs text-muted-foreground font-thin">
+        <div className="text-xs text-muted-foreground ">
           {totalFiles} files tracked
         </div>
       </div>
@@ -294,11 +298,11 @@ export function FileTree() {
 
       {/* Bundle Legend */}
       <Card className="p-4">
-        <h3 className="text-xs font-thin mb-2">Bundle Legend</h3>
+        <h3 className="text-xs  mb-2">Bundle Legend</h3>
         <div className="flex flex-wrap gap-2">
           {bundles.map(bundle => (
             <Badge key={bundle.name} variant="outline">
-              {bundle.name} ({bundle.files.length})
+              {bundle.name} ({bundle.files?.length || 0})
             </Badge>
           ))}
         </div>
