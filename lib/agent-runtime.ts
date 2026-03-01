@@ -185,8 +185,8 @@ This agent is **stateful**. All interactions in this directory are logged to a p
       if (lowConfidence && (isEntryQuery || isModelQuery)) {
         const allFiles = this.cntxServer.fileSystemManager.getAllFiles();
         if (isEntryQuery) {
-          // Look for common entry points like main.tsx, main.rs, App.tsx, etc.
-          const entryPatterns = [/main\./i, /index\./i, /app\./i, /router\./i, /server\./i];
+          // Look for common entry points like main.tsx, cli.js, bin.js, App.tsx, etc.
+          const entryPatterns = [/main/i, /index/i, /app\./i, /router/i, /server/i, /cli/i, /bin/i];
           entryPatterns.forEach(pattern => {
             fallbackFiles.push(...allFiles.filter(f => pattern.test(f)).slice(0, 3));
           });
