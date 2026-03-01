@@ -13,10 +13,6 @@ import Rust from 'tree-sitter-rust'
 import Json from 'tree-sitter-json'
 import Css from 'tree-sitter-css'
 import Html from 'tree-sitter-html'
-import Sql from 'tree-sitter-sql'
-import Markdown from 'tree-sitter-markdown'
-import Toml from 'tree-sitter-toml'
-import LegacyParser from 'tree-sitter-legacy'
 import HeuristicsManager from './heuristics-manager.js'
 import { SemanticChunk } from './database-manager.js'
 
@@ -83,29 +79,43 @@ export default class SemanticSplitter {
     this.parsers.css.setLanguage(Css)
     this.parsers.html.setLanguage(Html)
 
+    this.heuristicsManager = new HeuristicsManager()
+  }
+
+  async initializeLegacyParsers() {
     // Optional legacy parsers (native bindings often fail in global npm installs)
     try {
-      this.parsers.sql = new (LegacyParser as any)()
-      this.parsers.sql.setLanguage(Sql)
+      const [LegacyParser, Sql] = await Promise.all([
+        import('tree-sitter-legacy'),
+        import('tree-sitter-sql')
+      ]);
+      this.parsers.sql = new (LegacyParser.default as any)()
+      this.parsers.sql.setLanguage(Sql.default)
     } catch (e) {
       this.log('⚠️  SQL parser unavailable (native binding missing). Skipping SQL semantic analysis.');
     }
 
     try {
-      this.parsers.markdown = new (LegacyParser as any)()
-      this.parsers.markdown.setLanguage(Markdown)
+      const [LegacyParser, Markdown] = await Promise.all([
+        import('tree-sitter-legacy'),
+        import('tree-sitter-markdown')
+      ]);
+      this.parsers.markdown = new (LegacyParser.default as any)()
+      this.parsers.markdown.setLanguage(Markdown.default)
     } catch (e) {
       this.log('⚠️  Markdown parser unavailable. Skipping MD semantic analysis.');
     }
 
     try {
-      this.parsers.toml = new (LegacyParser as any)()
-      this.parsers.toml.setLanguage(Toml)
+      const [LegacyParser, Toml] = await Promise.all([
+        import('tree-sitter-legacy'),
+        import('tree-sitter-toml')
+      ]);
+      this.parsers.toml = new (LegacyParser.default as any)()
+      this.parsers.toml.setLanguage(Toml.default)
     } catch (e) {
       this.log('⚠️  TOML parser unavailable. Skipping TOML semantic analysis.');
     }
-
-    this.heuristicsManager = new HeuristicsManager()
   }
 
   log(message: string) {
@@ -143,6 +153,7 @@ export default class SemanticSplitter {
    * Now accepts a pre-filtered list of files from FileSystemManager
    */
   async extractSemanticChunks(projectPath: string, files: string[] = [], bundleConfig = null) {
+    await this.initializeLegacyParsers();
     this.log('🔪 Starting surgical semantic splitting via tree-sitter...')
     this.log(`📂 Project path: ${projectPath}`)
     
