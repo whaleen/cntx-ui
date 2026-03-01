@@ -9,19 +9,29 @@ export default class SimpleVectorStore {
     modelName;
     pipe;
     initialized;
+    isMcp;
     constructor(databaseManager, options = {}) {
         this.db = databaseManager;
         this.modelName = options.modelName || 'Xenova/all-MiniLM-L6-v2';
         this.pipe = null;
         this.initialized = false;
+        this.isMcp = options.isMcp || false;
+    }
+    log(message) {
+        if (this.isMcp) {
+            process.stderr.write(message + '\n');
+        }
+        else {
+            console.log(message);
+        }
     }
     async init() {
         if (this.initialized)
             return;
-        console.log(`🤖 Initializing local RAG engine (${this.modelName})...`);
+        this.log(`🤖 Initializing local RAG engine (${this.modelName})...`);
         this.pipe = await pipeline('feature-extraction', this.modelName);
         this.initialized = true;
-        console.log('✅ Local RAG engine ready');
+        this.log('✅ Local RAG engine ready');
     }
     async generateEmbedding(text) {
         await this.init();
@@ -49,7 +59,7 @@ export default class SimpleVectorStore {
      * Semantic Search across persistent embeddings
      */
     async search(query, options = {}) {
-        const { limit = 10, threshold = 0.5 } = options;
+        const { limit = 10, threshold = 0.2 } = options;
         const queryEmbedding = await this.generateEmbedding(query);
         // Load all embeddings from DB
         const rows = this.db.db.prepare('SELECT chunk_id, embedding FROM vector_embeddings WHERE model_name = ?').all(this.modelName);

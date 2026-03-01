@@ -6,8 +6,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 export class MCPServer {
     cntxServer;
-    constructor(cntxServer) {
+    version;
+    constructor(cntxServer, version = '3.0.0') {
         this.cntxServer = cntxServer;
+        this.version = version;
         // Listen for MCP requests on stdin
         process.stdin.on('data', (data) => {
             this.handleInput(data.toString());
@@ -36,7 +38,7 @@ export class MCPServer {
                         resources: {},
                         prompts: {}
                     },
-                    serverInfo: { name: 'cntx-ui', version: '3.0.0' }
+                    serverInfo: { name: 'cntx-ui', version: this.version }
                 }));
             case 'tools/list':
                 return this.sendResponse(this.handleListTools(id));

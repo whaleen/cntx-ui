@@ -47,18 +47,20 @@ export default class SemanticSplitter {
     minFunctionSize: number;
     minStructureSize: number;
     verbose: boolean;
+    isMcp: boolean;
   };
   parsers: Record<string, Parser>;
   heuristicsManager: HeuristicsManager;
   bundleConfig: any;
 
-  constructor(options: { maxChunkSize?: number, includeContext?: boolean, minFunctionSize?: number, minStructureSize?: number, verbose?: boolean } = {}) {
+  constructor(options: { maxChunkSize?: number, includeContext?: boolean, minFunctionSize?: number, minStructureSize?: number, verbose?: boolean, isMcp?: boolean } = {}) {
     this.options = {
       maxChunkSize: 3000,       // Max chars per chunk
       includeContext: true,     // Include imports/types needed
       minFunctionSize: 40,      // Skip tiny functions
       minStructureSize: 20,     // Skip tiny structures
       verbose: options.verbose || false,
+      isMcp: options.isMcp || false,
       ...options
     }
     
@@ -89,6 +91,14 @@ export default class SemanticSplitter {
     this.heuristicsManager = new HeuristicsManager()
   }
 
+  log(message: string) {
+    if (this.options.isMcp) {
+      process.stderr.write(message + '\n');
+    } else {
+      console.log(message);
+    }
+  }
+
   getParser(filePath: string): Parser {
     const ext = extname(filePath)
     switch (ext) {
@@ -112,11 +122,11 @@ export default class SemanticSplitter {
    * Now accepts a pre-filtered list of files from FileSystemManager
    */
   async extractSemanticChunks(projectPath: string, files: string[] = [], bundleConfig = null) {
-    console.log('🔪 Starting surgical semantic splitting via tree-sitter...')
-    console.log(`📂 Project path: ${projectPath}`)
+    this.log('🔪 Starting surgical semantic splitting via tree-sitter...')
+    this.log(`📂 Project path: ${projectPath}`)
     
     this.bundleConfig = bundleConfig
-    console.log(`📁 Processing ${files.length} filtered files`)
+    this.log(`📁 Processing ${files.length} filtered files`)
     
     const allChunks: SemanticChunk[] = []
     
@@ -132,7 +142,7 @@ export default class SemanticSplitter {
       }
     }
     
-    console.log(`🧩 Created ${allChunks.length} semantic chunks across project`)
+    this.log(`🧩 Created ${allChunks.length} semantic chunks across project`)
     return {
       summary: {
         totalFiles: files.length,
@@ -151,7 +161,7 @@ export default class SemanticSplitter {
 
     // Skip files larger than 200KB — tree-sitter and embeddings can't handle them well
     if (content.length > 200_000) {
-      console.warn(`Skipping ${relativePath}: file too large (${Math.round(content.length / 1024)}KB)`)
+      this.log(`⚠️  Skipping ${relativePath}: file too large (${Math.round(content.length / 1024)}KB)`)
       return []
     }
 
@@ -189,7 +199,7 @@ export default class SemanticSplitter {
       // Create chunks from elements
       return this.createChunks(elements, content, relativePath)
     } catch (error: any) {
-      console.warn(`⚠️ Parser failed for ${relativePath}: ${error.message}`)
+      this.log(`⚠️  Parser failed for ${relativePath}: ${error.message}`)
       if (this.options.verbose) {
         console.error(error.stack)
       }

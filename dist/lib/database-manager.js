@@ -79,6 +79,16 @@ export default class DatabaseManager {
         FOREIGN KEY(session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE
       );
       
+      -- UMAP Projection Cache
+      CREATE TABLE IF NOT EXISTS umap_projections (
+        chunk_id TEXT PRIMARY KEY,
+        x REAL NOT NULL,
+        y REAL NOT NULL,
+        computed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        embedding_count INTEGER NOT NULL,
+        FOREIGN KEY(chunk_id) REFERENCES semantic_chunks(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_bundles_changed ON bundles(changed);
       CREATE INDEX IF NOT EXISTS idx_chunks_file ON semantic_chunks(file_path);
       CREATE INDEX IF NOT EXISTS idx_chunks_purpose ON semantic_chunks(purpose);
@@ -263,6 +273,44 @@ export default class DatabaseManager {
         }
         catch (error) {
             return [];
+        }
+    }
+    // UMAP Projection Cache
+    saveProjections(projections, embeddingCount) {
+        const transaction = this.db.transaction(() => {
+            this.db.prepare('DELETE FROM umap_projections').run();
+            const stmt = this.db.prepare('INSERT INTO umap_projections (chunk_id, x, y, embedding_count) VALUES (?, ?, ?, ?)');
+            for (const p of projections) {
+                stmt.run(p.chunkId, p.x, p.y, embeddingCount);
+            }
+        });
+        try {
+            transaction();
+            return true;
+        }
+        catch (error) {
+            console.error('Failed to save projections:', error.message);
+            return false;
+        }
+    }
+    getProjections() {
+        try {
+            const rows = this.db.prepare('SELECT chunk_id, x, y, embedding_count FROM umap_projections').all();
+            if (rows.length === 0)
+                return null;
+            return rows.map(r => ({ chunkId: r.chunk_id, x: r.x, y: r.y, embeddingCount: r.embedding_count }));
+        }
+        catch (error) {
+            return null;
+        }
+    }
+    getProjectionEmbeddingCount() {
+        try {
+            const row = this.db.prepare('SELECT embedding_count FROM umap_projections LIMIT 1').get();
+            return row?.embedding_count ?? 0;
+        }
+        catch (error) {
+            return 0;
         }
     }
     // Close database connection

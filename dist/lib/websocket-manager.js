@@ -7,35 +7,50 @@ export default class WebSocketManager {
     bundleManager;
     configManager;
     verbose;
+    isMcp;
     clients;
     wss;
     constructor(bundleManager, configManager, options = {}) {
         this.bundleManager = bundleManager;
         this.configManager = configManager;
         this.verbose = options.verbose || false;
+        this.isMcp = options.isMcp || false;
         this.clients = new Set();
         this.wss = null;
+    }
+    log(message) {
+        if (this.isMcp) {
+            process.stderr.write(message + '\n');
+        }
+        else {
+            console.log(message);
+        }
     }
     initialize(httpServer) {
         this.wss = new WebSocketServer({ server: httpServer });
         this.wss.on('connection', (ws) => {
             this.handleConnection(ws);
         });
+        this.wss.on('error', (error) => {
+            if (this.verbose) {
+                console.error('🔌 WebSocket server error:', error.message);
+            }
+        });
         if (this.verbose) {
-            console.log('🔌 WebSocket server initialized');
+            this.log('🔌 WebSocket server initialized');
         }
     }
     handleConnection(ws) {
         this.clients.add(ws);
         if (this.verbose) {
-            console.log(`📱 WebSocket client connected (${this.clients.size} total clients)`);
+            this.log(`📱 WebSocket client connected (${this.clients.size} total clients)`);
         }
         // Send initial status
         this.sendUpdate(ws);
         ws.on('close', () => {
             this.clients.delete(ws);
             if (this.verbose) {
-                console.log(`📱 WebSocket client disconnected (${this.clients.size} total clients)`);
+                this.log(`📱 WebSocket client disconnected (${this.clients.size} total clients)`);
             }
         });
         ws.on('error', (error) => {
@@ -58,7 +73,7 @@ export default class WebSocketManager {
     }
     handleClientMessage(ws, data) {
         if (this.verbose) {
-            console.log('📩 Received client message:', data.type);
+            this.log('📩 Received client message: ' + data.type);
         }
         switch (data.type) {
             case 'ping':
@@ -94,7 +109,7 @@ export default class WebSocketManager {
      */
     broadcastUpdate() {
         if (this.verbose) {
-            console.log('📢 Broadcasting status update to all clients');
+            this.log('📢 Broadcasting status update to all clients');
         }
         this.clients.forEach(client => {
             this.sendUpdate(client);
@@ -135,7 +150,7 @@ export default class WebSocketManager {
     }
     broadcastBundleUpdate(bundleName) {
         if (this.verbose) {
-            console.log(`📢 Broadcasting update for bundle: ${bundleName}`);
+            this.log(`📢 Broadcasting update for bundle: ${bundleName}`);
         }
         const bundle = this.configManager.getBundles().get(bundleName);
         if (!bundle)
@@ -186,7 +201,7 @@ export default class WebSocketManager {
     close() {
         if (this.wss) {
             if (this.verbose) {
-                console.log('🔌 Closing WebSocket server');
+                this.log('🔌 Closing WebSocket server');
             }
             this.clients.forEach(client => {
                 try {
@@ -200,7 +215,7 @@ export default class WebSocketManager {
             });
             this.wss.close(() => {
                 if (this.verbose) {
-                    console.log('🔌 WebSocket server closed');
+                    this.log('🔌 WebSocket server closed');
                 }
             });
             this.clients.clear();

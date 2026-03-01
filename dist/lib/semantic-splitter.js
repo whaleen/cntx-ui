@@ -28,6 +28,8 @@ export default class SemanticSplitter {
             includeContext: true, // Include imports/types needed
             minFunctionSize: 40, // Skip tiny functions
             minStructureSize: 20, // Skip tiny structures
+            verbose: options.verbose || false,
+            isMcp: options.isMcp || false,
             ...options
         };
         // Initialize tree-sitter parsers
@@ -55,6 +57,14 @@ export default class SemanticSplitter {
         this.parsers.toml.setLanguage(Toml);
         this.heuristicsManager = new HeuristicsManager();
     }
+    log(message) {
+        if (this.options.isMcp) {
+            process.stderr.write(message + '\n');
+        }
+        else {
+            console.log(message);
+        }
+    }
     getParser(filePath) {
         const ext = extname(filePath);
         switch (ext) {
@@ -77,10 +87,10 @@ export default class SemanticSplitter {
      * Now accepts a pre-filtered list of files from FileSystemManager
      */
     async extractSemanticChunks(projectPath, files = [], bundleConfig = null) {
-        console.log('🔪 Starting surgical semantic splitting via tree-sitter...');
-        console.log(`📂 Project path: ${projectPath}`);
+        this.log('🔪 Starting surgical semantic splitting via tree-sitter...');
+        this.log(`📂 Project path: ${projectPath}`);
         this.bundleConfig = bundleConfig;
-        console.log(`📁 Processing ${files.length} filtered files`);
+        this.log(`📁 Processing ${files.length} filtered files`);
         const allChunks = [];
         for (const filePath of files) {
             try {
@@ -88,10 +98,13 @@ export default class SemanticSplitter {
                 allChunks.push(...fileChunks);
             }
             catch (error) {
-                console.warn(`Failed to process ${filePath}: ${error.message}`);
+                console.warn(`⚠️ Failed to process ${filePath}: ${error.message}`);
+                if (this.options.verbose) {
+                    console.error(error.stack);
+                }
             }
         }
-        console.log(`🧩 Created ${allChunks.length} semantic chunks across project`);
+        this.log(`🧩 Created ${allChunks.length} semantic chunks across project`);
         return {
             summary: {
                 totalFiles: files.length,
@@ -108,43 +121,52 @@ export default class SemanticSplitter {
         const content = readFileSync(fullPath, 'utf8');
         // Skip files larger than 200KB — tree-sitter and embeddings can't handle them well
         if (content.length > 200_000) {
-            console.warn(`Skipping ${relativePath}: file too large (${Math.round(content.length / 1024)}KB)`);
+            this.log(`⚠️  Skipping ${relativePath}: file too large (${Math.round(content.length / 1024)}KB)`);
             return [];
         }
         const parser = this.getParser(relativePath);
-        const tree = parser.parse(content);
-        const root = tree.rootNode;
-        const ext = extname(relativePath).toLowerCase();
-        const elements = {
-            functions: [],
-            types: [],
-            imports: []
-        };
-        if (['.js', '.jsx', '.ts', '.tsx', '.rs'].includes(ext)) {
-            elements.imports = this.extractImports(root, content, relativePath);
-            // Traverse AST for functions and types
-            this.traverse(root, content, relativePath, elements);
+        try {
+            const tree = parser.parse(content);
+            const root = tree.rootNode;
+            const ext = extname(relativePath).toLowerCase();
+            const elements = {
+                functions: [],
+                types: [],
+                imports: []
+            };
+            if (['.js', '.jsx', '.ts', '.tsx', '.rs'].includes(ext)) {
+                elements.imports = this.extractImports(root, content, relativePath);
+                // Traverse AST for functions and types
+                this.traverse(root, content, relativePath, elements);
+            }
+            else if (ext === '.json') {
+                this.extractJsonStructures(root, content, relativePath, elements);
+            }
+            else if (ext === '.css' || ext === '.scss') {
+                this.extractCssStructures(root, content, relativePath, elements);
+            }
+            else if (ext === '.html') {
+                this.extractHtmlStructures(root, content, relativePath, elements);
+            }
+            else if (ext === '.sql') {
+                this.extractSqlStructures(root, content, relativePath, elements);
+            }
+            else if (ext === '.md') {
+                this.extractMarkdownStructures(root, content, relativePath, elements);
+            }
+            else if (ext === '.toml') {
+                this.extractTomlStructures(root, content, relativePath, elements);
+            }
+            // Create chunks from elements
+            return this.createChunks(elements, content, relativePath);
         }
-        else if (ext === '.json') {
-            this.extractJsonStructures(root, content, relativePath, elements);
+        catch (error) {
+            this.log(`⚠️  Parser failed for ${relativePath}: ${error.message}`);
+            if (this.options.verbose) {
+                console.error(error.stack);
+            }
+            return [];
         }
-        else if (ext === '.css' || ext === '.scss') {
-            this.extractCssStructures(root, content, relativePath, elements);
-        }
-        else if (ext === '.html') {
-            this.extractHtmlStructures(root, content, relativePath, elements);
-        }
-        else if (ext === '.sql') {
-            this.extractSqlStructures(root, content, relativePath, elements);
-        }
-        else if (ext === '.md') {
-            this.extractMarkdownStructures(root, content, relativePath, elements);
-        }
-        else if (ext === '.toml') {
-            this.extractTomlStructures(root, content, relativePath, elements);
-        }
-        // Create chunks from elements
-        return this.createChunks(elements, content, relativePath);
     }
     traverse(node, content, filePath, elements) {
         // Detect Function Declarations (JS/TS)

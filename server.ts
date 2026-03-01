@@ -111,7 +111,10 @@ export class CntxServer {
     this.databaseManager = this.configManager.dbManager;
     this.fileSystemManager = new FileSystemManager(cwd, { verbose: this.verbose });
     this.bundleManager = new BundleManager(this.configManager, this.fileSystemManager, this.verbose);
-    this.webSocketManager = new WebSocketManager(this.bundleManager, this.configManager, { verbose: this.verbose });
+    this.webSocketManager = new WebSocketManager(this.bundleManager, this.configManager, { 
+      verbose: this.verbose,
+      isMcp: this.isMcp
+    });
     this.artifactManager = new ArtifactManager(cwd);
 
     // AI Components
@@ -119,7 +122,8 @@ export class CntxServer {
       maxChunkSize: 2000,
       includeContext: true,
       minFunctionSize: 50,
-      verbose: this.verbose
+      verbose: this.verbose,
+      isMcp: this.isMcp
     });
 
     this.vectorStore = new SimpleVectorStore(this.databaseManager, {
@@ -496,6 +500,12 @@ export async function initConfig(cwd = process.cwd()) {
     cpSync(agentRulesSource, agentRulesDest, { recursive: true });
     server.log('📁 Created agent-rules directory with templates');
   }
+
+  // 5. Trigger initial semantic scan (master bundle)
+  server.log('🔪 Performing initial semantic scan...');
+  await server.init({ skipFileWatcher: true, skipBundleGeneration: true });
+  await server.bundleManager.regenerateBundle('master');
+  server.log('✅ Project is ready for AI agents');
 
   return server.initMessages;
 }

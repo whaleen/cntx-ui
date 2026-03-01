@@ -14,12 +14,14 @@ import DatabaseManager from './database-manager.js';
 export interface DiscoveryOptions {
   scope?: string;
   includeDetails?: boolean;
+  verbose?: boolean;
 }
 
 export interface QueryOptions {
   scope?: string | null;
   maxResults?: number;
   includeCode?: boolean;
+  query?: string;
 }
 
 export class AgentRuntime {
@@ -126,14 +128,14 @@ This agent is **stateful**. All interactions in this directory are logged to a p
    * Now logs the discovery process to memory
    */
   async discoverCodebase(options: DiscoveryOptions = {}) {
-    const { scope = 'all', includeDetails = true } = options;
+    const { scope = 'all', includeDetails = true, verbose = false } = options;
     
     try {
       await this.logInteraction('agent', `Starting codebase discovery for scope: ${scope}`);
       
       const discovery: any = {
         overview: await this.getCodebaseOverview(),
-        bundles: await this.analyzeBundles(scope),
+        bundles: await this.analyzeBundles(scope, verbose),
         architecture: await this.analyzeArchitecture(),
         patterns: await this.identifyPatterns(),
         recommendations: []
@@ -161,23 +163,64 @@ This agent is **stateful**. All interactions in this directory are logged to a p
    * Now recalls previous context from SQLite
    */
   async answerQuery(question: string, options: QueryOptions = {}) {
-    const { maxResults = 10, includeCode = false } = options;
+    const { maxResults = 10, includeCode = false, query } = options;
+    const actualQuestion = question || query;
+
+    if (!actualQuestion) {
+      throw new Error('Missing question or query for search.');
+    }
 
     try {
-      await this.logInteraction('user', question);
+      await this.logInteraction('user', actualQuestion);
       
       // Perform semantic search via Vector Store
-      const combinedResults = await this.cntxServer.vectorStore.search(question, { limit: maxResults });
+      let combinedResults = await this.cntxServer.vectorStore.search(actualQuestion, { limit: maxResults });
+
+      // Heuristic fallback for common onboarding questions if results are poor
+      const lowConfidence = combinedResults.length === 0 || combinedResults[0].similarity < 0.6;
+      const isEntryQuery = /entry|start|main|index|run/i.test(actualQuestion);
+      const isModelQuery = /model|schema|data|db|database/i.test(actualQuestion);
+
+      let fallbackFiles: string[] = [];
+      if (lowConfidence && (isEntryQuery || isModelQuery)) {
+        const allFiles = this.cntxServer.fileSystemManager.getAllFiles();
+        if (isEntryQuery) {
+          // Look for common entry points like main.tsx, main.rs, App.tsx, etc.
+          const entryPatterns = [/main\./i, /index\./i, /app\./i, /router\./i, /server\./i];
+          entryPatterns.forEach(pattern => {
+            fallbackFiles.push(...allFiles.filter(f => pattern.test(f)).slice(0, 3));
+          });
+        }
+        if (isModelQuery) {
+          const modelPatterns = [/model/i, /schema/i, /db/i, /database/i, /entity/i];
+          modelPatterns.forEach(pattern => {
+            fallbackFiles.push(...allFiles.filter(f => pattern.test(f)).slice(0, 3));
+          });
+        }
+        fallbackFiles = [...new Set(fallbackFiles)].slice(0, 8);
+      }
 
       // Generate contextual answer
-      const answer = await this.generateContextualAnswer(question, { chunks: combinedResults, files: [] }, includeCode);
+      const answer = await this.generateContextualAnswer(question, { 
+        chunks: combinedResults, 
+        files: fallbackFiles 
+      }, includeCode);
+
+      // If no semantic results but we found fallbacks, improve the answer
+      if (combinedResults.length === 0 && fallbackFiles.length > 0) {
+        answer.response = `I couldn't find exact semantic matches, but based on common project structures, these files look relevant: ${fallbackFiles.join(', ')}`;
+        answer.confidence = 0.4;
+      }
 
       const response = {
         question,
         answer: answer.response,
         evidence: answer.evidence,
         confidence: answer.confidence,
-        relatedFiles: [...new Set(combinedResults.map(c => c.filePath))].slice(0, 5)
+        relatedFiles: [...new Set([
+          ...combinedResults.map(c => c.filePath),
+          ...fallbackFiles
+        ])].slice(0, 8)
       };
 
       await this.logInteraction('agent', response.answer, { response });
@@ -192,16 +235,21 @@ This agent is **stateful**. All interactions in this directory are logged to a p
    * Feature Investigation Mode: Now persists the investigation approach
    */
   async investigateFeature(featureDescription: string, options: any = {}) {
-    const { includeRecommendations = true } = options;
+    const { includeRecommendations = true, feature, description, area } = options;
+    const actualDescription = featureDescription || feature || description || area;
+
+    if (!actualDescription) {
+      throw new Error('Missing feature description for investigation.');
+    }
 
     try {
-      await this.logInteraction('user', `Investigating feature: ${featureDescription}`);
+      await this.logInteraction('user', `Investigating feature: ${actualDescription}`);
       
       const investigation: any = {
-        feature: featureDescription,
-        existing: await this.findExistingImplementations(featureDescription),
-        related: await this.findRelatedCode(featureDescription),
-        integration: await this.findIntegrationPoints(featureDescription)
+        feature: actualDescription,
+        existing: await this.findExistingImplementations(actualDescription),
+        related: await this.findRelatedCode(actualDescription),
+        integration: await this.findIntegrationPoints(actualDescription)
       };
 
       if (includeRecommendations) {
@@ -220,8 +268,9 @@ This agent is **stateful**. All interactions in this directory are logged to a p
 
   async getCodebaseOverview() {
     const bundles = Array.from(this.cntxServer.bundleManager.getAllBundleInfo());
-    const totalFiles = bundles.reduce((sum, b) => sum + b.fileCount, 0);
-    const totalSize = bundles.reduce((sum, b) => sum + b.size, 0);
+    const totalFiles = this.cntxServer.fileSystemManager.getAllFiles().length;
+    const masterBundle = bundles.find(b => b.name === 'master');
+    const totalSize = masterBundle ? masterBundle.size : bundles.reduce((sum, b) => sum + b.size, 0);
 
     return {
       projectPath: this.cntxServer.CWD,
@@ -232,19 +281,50 @@ This agent is **stateful**. All interactions in this directory are logged to a p
     };
   }
 
-  async analyzeBundles(scope: string) {
+  async analyzeBundles(scope: string, verbose: boolean = false) {
     const bundles = this.cntxServer.bundleManager.getAllBundleInfo();
     const filtered = scope === 'all' ? bundles : bundles.filter(b => b.name === scope);
     
-    return filtered.map(b => ({
-      ...b,
-      purpose: this.inferBundlePurpose(b.name, b.files || [])
-    }));
+    return filtered.map(b => {
+      const files = b.files || [];
+      const purpose = this.inferBundlePurpose(b.name, files);
+      
+      // Implement compact mode: only show top 5 files if not verbose
+      let displayFiles = files;
+      if (!verbose && files.length > 5) {
+        // Pick high-signal files: main, index, App, or just the first few
+        const keyFiles = files.filter(f => /main|index|app|router|api|models/i.test(f));
+        displayFiles = [...new Set([...keyFiles, ...files])].slice(0, 5);
+      }
+
+      return {
+        ...b,
+        purpose,
+        files: displayFiles,
+        totalFiles: files.length,
+        isTruncated: !verbose && files.length > 5
+      };
+    });
   }
 
   inferBundlePurpose(name: string, files: string[]) {
-    if (name.includes('component') || name.includes('ui')) return 'UI Components';
-    if (name.includes('api') || name.includes('server')) return 'Backend API';
+    const n = name.toLowerCase();
+    if (n.includes('component') || n.includes('ui') || n.includes('view') || n.includes('screen')) return 'UI Components & Views';
+    if (n.includes('api') || n.includes('server') || n.includes('backend') || n.includes('netlify')) return 'Backend API & Functions';
+    if (n.includes('hook')) return 'React Hooks';
+    if (n.includes('util') || n.includes('helper')) return 'Utility functions';
+    if (n.includes('lib') || n.includes('service') || n.includes('store')) return 'Business logic & services';
+    if (n.includes('database') || n.includes('db') || n.includes('model') || n.includes('schema')) return 'Data models & DB';
+    if (n.includes('test') || n.includes('spec')) return 'Test suite';
+    if (n.includes('doc') || n.includes('readme')) return 'Documentation';
+    if (n.includes('script') || n.includes('bin')) return 'Scripts & CLI';
+    if (n.includes('asset') || n.includes('public')) return 'Assets & static files';
+    if (n.includes('style') || n.includes('css')) return 'Styles';
+    
+    // Fallback to file extension analysis if name is generic
+    if (files.some(f => f.endsWith('.rs'))) return 'Rust Source';
+    if (files.some(f => f.endsWith('.ts') || f.endsWith('.tsx'))) return 'TypeScript Source';
+    
     return 'General Module';
   }
 
@@ -293,26 +373,86 @@ This agent is **stateful**. All interactions in this directory are logged to a p
   }
 
   async findExistingImplementations(featureDescription: string) {
-    return await this.cntxServer.vectorStore.search(featureDescription, { limit: 5 });
+    const results = await this.cntxServer.vectorStore.search(featureDescription, { limit: 5 });
+    return results.map(r => ({
+      file: r.filePath,
+      name: r.name,
+      purpose: r.purpose,
+      relevance: r.similarity
+    }));
   }
 
   async findRelatedCode(featureDescription: string) {
-    return [];
+    // Search for keywords in the description
+    const keywords = featureDescription.split(' ').filter(w => w.length > 4);
+    const allFiles = this.cntxServer.fileSystemManager.getAllFiles();
+    
+    const matches = allFiles.filter(f => 
+      keywords.some(k => f.toLowerCase().includes(k.toLowerCase()))
+    ).slice(0, 5);
+
+    return matches.map(f => ({
+      file: f,
+      reason: 'Filename contains relevant keywords'
+    }));
   }
 
   async findIntegrationPoints(featureDescription: string) {
-    return [];
+    const existing = await this.findExistingImplementations(featureDescription);
+    const related = await this.findRelatedCode(featureDescription);
+    
+    const candidates = [...new Set([
+      ...existing.map(e => e.file),
+      ...related.map(r => r.file)
+    ])];
+
+    return candidates.map(f => {
+      const ext = path.extname(f);
+      let role = 'Likely touch point';
+      if (ext === '.rs') role = 'Backend logic (Rust)';
+      if (ext === '.tsx') role = 'UI/Frontend component';
+      if (f.includes('router') || f.includes('api')) role = 'API/Routing';
+      if (f.includes('store') || f.includes('hook')) role = 'State/Data management';
+      
+      return { file: f, role };
+    });
   }
 
   async suggestImplementationApproach(investigation: any) {
-    return { strategy: 'TBD', description: 'Ready to plan' };
+    const points = investigation.integration || [];
+    if (points.length === 0) {
+      return { 
+        strategy: 'Exploratory Search', 
+        description: 'No clear integration points found. Recommendation: Perform a broader semantic search for core business entities.' 
+      };
+    }
+
+    const primaryFile = points[0].file;
+    return {
+      strategy: `Extend ${primaryFile}`,
+      description: `Based on the feature description, the primary integration point seems to be ${primaryFile}. You should examine this file and its dependencies to determine the exact insertion point.`,
+      steps: [
+        `1. Analyze ${primaryFile} for existing patterns.`,
+        `2. Check related files: ${points.slice(1, 3).map((p: any) => p.file).join(', ')}`,
+        `3. Implement the feature following the established coding style.`
+      ]
+    };
   }
 
   async generateContextualAnswer(question: string, results: any, includeCode: boolean) {
     let response = `Based on the codebase analysis:\n\n`;
-    if (results.chunks.length > 0) {
+    const hasSemantic = results.chunks.length > 0;
+    const hasFallbacks = results.files && results.files.length > 0;
+
+    if (hasSemantic) {
       const top = results.chunks[0];
       response += `The most relevant implementation found is \`${top.name}\` in \`${top.filePath}\` (Purpose: ${top.purpose}).\n\n`;
+    } else if (hasFallbacks) {
+      response += `I couldn't find an exact semantic match for your query, but these files look like strong candidates for the entry point or data model:\n\n`;
+      results.files.forEach((f: string) => {
+        response += `- \`${f}\`\n`;
+      });
+      response += `\nYou should start by examining these files.`;
     } else {
       response += `No direct semantic matches found. Try refining your query.`;
     }
@@ -320,7 +460,7 @@ This agent is **stateful**. All interactions in this directory are logged to a p
     return {
       response,
       evidence: results.chunks.slice(0, 3),
-      confidence: results.chunks.length > 0 ? 0.8 : 0.2
+      confidence: hasSemantic ? 0.8 : (hasFallbacks ? 0.4 : 0.2)
     };
   }
 }

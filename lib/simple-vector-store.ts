@@ -71,7 +71,7 @@ export default class SimpleVectorStore {
    * Semantic Search across persistent embeddings
    */
   async search(query: string, options: { limit?: number, threshold?: number } = {}): Promise<SearchResult[]> {
-    const { limit = 10, threshold = 0.5 } = options;
+    const { limit = 10, threshold = 0.2 } = options;
     const queryEmbedding = await this.generateEmbedding(query);
     
     // Load all embeddings from DB
