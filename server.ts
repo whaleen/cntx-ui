@@ -279,7 +279,7 @@ export class CntxServer {
 
   async listen(port = 3333, host = 'localhost') {
     if (this.isMcp) {
-      this.log('Mode: MCP (stdio) - Skipping HTTP server start');
+      this.log('Mode: MCP (stdio) - Skipping HTTP server (no port fallback required)');
       return null;
     }
 

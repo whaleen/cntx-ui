@@ -72,11 +72,9 @@ export default class SemanticSplitter {
       rust: new Parser(),
       json: new Parser(),
       css: new Parser(),
-      html: new Parser(),
-      sql: new (LegacyParser as any)(),
-      markdown: new (LegacyParser as any)(),
-      toml: new (LegacyParser as any)()
+      html: new Parser()
     }
+    
     this.parsers.javascript.setLanguage(JavaScript)
     this.parsers.typescript.setLanguage(TypeScript.typescript)
     this.parsers.tsx.setLanguage(TypeScript.tsx)
@@ -84,9 +82,28 @@ export default class SemanticSplitter {
     this.parsers.json.setLanguage(Json)
     this.parsers.css.setLanguage(Css)
     this.parsers.html.setLanguage(Html)
-    this.parsers.sql.setLanguage(Sql)
-    this.parsers.markdown.setLanguage(Markdown)
-    this.parsers.toml.setLanguage(Toml)
+
+    // Optional legacy parsers (native bindings often fail in global npm installs)
+    try {
+      this.parsers.sql = new (LegacyParser as any)()
+      this.parsers.sql.setLanguage(Sql)
+    } catch (e) {
+      this.log('⚠️  SQL parser unavailable (native binding missing). Skipping SQL semantic analysis.');
+    }
+
+    try {
+      this.parsers.markdown = new (LegacyParser as any)()
+      this.parsers.markdown.setLanguage(Markdown)
+    } catch (e) {
+      this.log('⚠️  Markdown parser unavailable. Skipping MD semantic analysis.');
+    }
+
+    try {
+      this.parsers.toml = new (LegacyParser as any)()
+      this.parsers.toml.setLanguage(Toml)
+    } catch (e) {
+      this.log('⚠️  TOML parser unavailable. Skipping TOML semantic analysis.');
+    }
 
     this.heuristicsManager = new HeuristicsManager()
   }
@@ -99,22 +116,26 @@ export default class SemanticSplitter {
     }
   }
 
-  getParser(filePath: string): Parser {
-    const ext = extname(filePath)
+  getParser(filePath: string): Parser | null {
+    const ext = extname(filePath).toLowerCase()
+    let parser: Parser | undefined;
+
     switch (ext) {
-      case '.json': return this.parsers.json
-      case '.css': return this.parsers.css
-      case '.scss': return this.parsers.css
-      case '.html': return this.parsers.html
-      case '.sql': return this.parsers.sql
-      case '.md': return this.parsers.markdown
-      case '.toml': return this.parsers.toml
-      case '.jsx': return this.parsers.javascript
-      case '.ts': return this.parsers.typescript
-      case '.tsx': return this.parsers.tsx
-      case '.rs': return this.parsers.rust
-      default: return this.parsers.javascript
+      case '.json': parser = this.parsers.json; break;
+      case '.css': 
+      case '.scss': parser = this.parsers.css; break;
+      case '.html': parser = this.parsers.html; break;
+      case '.sql': parser = this.parsers.sql; break;
+      case '.md': parser = this.parsers.markdown; break;
+      case '.toml': parser = this.parsers.toml; break;
+      case '.jsx': parser = this.parsers.javascript; break;
+      case '.ts': parser = this.parsers.typescript; break;
+      case '.tsx': parser = this.parsers.tsx; break;
+      case '.rs': parser = this.parsers.rust; break;
+      default: parser = this.parsers.javascript;
     }
+
+    return parser || null;
   }
 
   /**
@@ -166,6 +187,12 @@ export default class SemanticSplitter {
     }
 
     const parser = this.getParser(relativePath)
+    if (!parser) {
+      if (this.options.verbose) {
+        this.log(`⚠️  No parser available for ${relativePath}, skipping.`);
+      }
+      return [];
+    }
     
     try {
       const tree = parser.parse(content)

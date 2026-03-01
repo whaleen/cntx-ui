@@ -256,6 +256,10 @@ This agent is **stateful**. All interactions in this directory are logged to a p
     }
     inferBundlePurpose(name, files) {
         const n = name.toLowerCase();
+        if (n === 'master')
+            return 'Full Project Index (Source of Truth)';
+        if (n.startsWith('smart:'))
+            return 'Auto-grouped Code Structures (' + n.split('-').pop() + ')';
         if (n.includes('component') || n.includes('ui') || n.includes('view') || n.includes('screen'))
             return 'UI Components & Views';
         if (n.includes('api') || n.includes('server') || n.includes('backend') || n.includes('netlify'))
