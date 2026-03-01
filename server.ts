@@ -143,13 +143,14 @@ export class CntxServer {
 
     // Initialize API router
     this.apiRouter = new APIRouter(
-      this,
+      this.CWD,
       this.configManager,
       this.bundleManager,
       this.fileSystemManager,
       this.semanticAnalysisManager,
       this.vectorStore,
-      this.activityManager
+      this.activityManager,
+      this.artifactManager
     );
 
     // Cross-module linkage
@@ -274,6 +275,7 @@ export class CntxServer {
     if (!this.mcpServer) {
       this.mcpServer = new MCPServer(this, this.version);
       this.mcpServerStarted = true;
+      this.apiRouter.setMcpEnabled(true);
     }
   }
 

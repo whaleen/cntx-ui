@@ -7,29 +7,35 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { parse } from 'url';
 import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import path, { join, relative, extname, dirname } from 'path';
-import { CntxServer } from '../server.js';
 import ConfigurationManager from './configuration-manager.js';
 import BundleManager from './bundle-manager.js';
 import FileSystemManager from './file-system-manager.js';
 import SimpleVectorStore from './simple-vector-store.js';
 
 export default class APIRouter {
-  cntxServer: CntxServer;
+  cwd: string;
   configManager: ConfigurationManager;
   bundleManager: BundleManager;
   fileSystemManager: FileSystemManager;
   semanticAnalysisManager: any;
   vectorStore: SimpleVectorStore;
   activityManager: any;
+  artifactManager: any;
+  mcpEnabled: boolean = false;
 
-  constructor(cntxServer: CntxServer, configManager: ConfigurationManager, bundleManager: BundleManager, fileSystemManager: FileSystemManager, semanticAnalysisManager: any, vectorStore: SimpleVectorStore, activityManager: any) {
-    this.cntxServer = cntxServer;
+  constructor(cwd: string, configManager: ConfigurationManager, bundleManager: BundleManager, fileSystemManager: FileSystemManager, semanticAnalysisManager: any, vectorStore: SimpleVectorStore, activityManager: any, artifactManager: any) {
+    this.cwd = cwd;
     this.configManager = configManager;
     this.bundleManager = bundleManager;
     this.fileSystemManager = fileSystemManager;
     this.semanticAnalysisManager = semanticAnalysisManager;
     this.vectorStore = vectorStore;
     this.activityManager = activityManager;
+    this.artifactManager = artifactManager;
+  }
+
+  setMcpEnabled(enabled: boolean) {
+    this.mcpEnabled = enabled;
   }
 
   async handleRequest(req: IncomingMessage, res: ServerResponse, url: any) {
@@ -38,7 +44,8 @@ export default class APIRouter {
 
     try {
       // === Bundle Endpoints ===
-      if (pathname === '/api/bundles' && method === 'GET') {
+      if (pathname === '/api/bundles' && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         return await this.handleGetBundles(req, res, url);
       }
 
@@ -46,7 +53,8 @@ export default class APIRouter {
         return await this.handlePostBundles(req, res);
       }
 
-      if (pathname.startsWith('/api/bundles/') && method === 'GET') {
+      if (pathname.startsWith('/api/bundles/') && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         const bundleName = pathname.split('/')[3];
         return await this.handleGetBundle(req, res, bundleName);
       }
@@ -57,11 +65,13 @@ export default class APIRouter {
       }
 
       // === File Endpoints ===
-      if (pathname === '/api/files' && method === 'GET') {
+      if (pathname === '/api/files' && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         return await this.handleGetFiles(req, res);
       }
 
-      if (pathname.startsWith('/api/files/') && method === 'GET') {
+      if (pathname.startsWith('/api/files/') && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         const filePath = pathname.substring(11); // Remove /api/files/
         return await this.handleGetFile(req, res, filePath);
       }
@@ -137,24 +147,29 @@ export default class APIRouter {
       }
 
       // === Status & MCP ===
-      if (pathname === '/api/status' && method === 'GET') {
+      if (pathname === '/api/status' && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         return await this.handleGetStatus(req, res);
       }
 
-      if (pathname === '/api/mcp-status' && method === 'GET') {
+      if (pathname === '/api/mcp-status' && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         return await this.handleGetMcpStatus(req, res);
       }
 
       // === Artifact Endpoints ===
-      if (pathname === '/api/artifacts' && method === 'GET') {
+      if (pathname === '/api/artifacts' && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         return await this.handleGetArtifacts(req, res);
       }
 
-      if (pathname === '/api/artifacts/openapi' && method === 'GET') {
+      if (pathname === '/api/artifacts/openapi' && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         return await this.handleGetArtifact(req, res, 'openapi');
       }
 
-      if (pathname === '/api/artifacts/navigation' && method === 'GET') {
+      if (pathname === '/api/artifacts/navigation' && (method === 'GET' || method === 'HEAD')) {
+        if (method === 'HEAD') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(); }
         return await this.handleGetArtifact(req, res, 'navigation');
       }
 
@@ -324,9 +339,9 @@ export default class APIRouter {
     const refresh = url.query?.refresh === 'true';
     let analysis;
     if (refresh) {
-      analysis = await this.cntxServer.refreshSemanticAnalysis();
+      analysis = await this.semanticAnalysisManager.refreshSemanticAnalysis();
     } else {
-      analysis = await this.cntxServer.getSemanticAnalysis();
+      analysis = await this.semanticAnalysisManager.getSemanticAnalysis();
     }
 
     const chunks = analysis.chunks.map((chunk: any) => ({
@@ -371,7 +386,7 @@ export default class APIRouter {
   }
 
   async handlePostVectorDbRebuild(req: IncomingMessage, res: ServerResponse) {
-    const analysis = await this.cntxServer.getSemanticAnalysis();
+    const analysis = await this.semanticAnalysisManager.getSemanticAnalysis();
     for (const chunk of analysis.chunks) {
       await this.vectorStore.upsertChunk(chunk);
     }
@@ -533,18 +548,19 @@ export default class APIRouter {
     this.sendResponse(res, 200, {
       uptime: process.uptime(),
       memory: process.memoryUsage(),
+      projectPath: this.cwd,
       bundles,
       scanning: this.bundleManager.isScanning,
       totalFiles: this.fileSystemManager.getAllFiles().length,
       mcp: {
-        enabled: this.cntxServer.mcpServerStarted,
+        enabled: this.mcpEnabled,
         available: true
       }
     });
   }
 
   async handleGetMcpStatus(req: IncomingMessage, res: ServerResponse) {
-    const isRunning = this.cntxServer.mcpServerStarted;
+    const isRunning = this.mcpEnabled;
     this.sendResponse(res, 200, {
       enabled: isRunning,
       running: isRunning,
@@ -554,13 +570,13 @@ export default class APIRouter {
   }
 
   async handleGetArtifacts(req: IncomingMessage, res: ServerResponse) {
-    const artifacts = this.cntxServer.artifactManager.refresh();
+    const artifacts = this.artifactManager.refresh();
     this.sendResponse(res, 200, { artifacts });
   }
 
   async handleGetArtifact(req: IncomingMessage, res: ServerResponse, type: 'openapi' | 'navigation') {
-    this.cntxServer.artifactManager.refresh();
-    const payload = this.cntxServer.artifactManager.getPayload(type);
+    this.artifactManager.refresh();
+    const payload = this.artifactManager.getPayload(type);
     this.sendResponse(res, 200, payload);
   }
 

@@ -114,7 +114,7 @@ export class CntxServer {
         this.semanticAnalysisManager = this; // Self as manager
         this.activityManager = this; // Simple mock for now
         // Initialize API router
-        this.apiRouter = new APIRouter(this, this.configManager, this.bundleManager, this.fileSystemManager, this.semanticAnalysisManager, this.vectorStore, this.activityManager);
+        this.apiRouter = new APIRouter(this.CWD, this.configManager, this.bundleManager, this.fileSystemManager, this.semanticAnalysisManager, this.vectorStore, this.activityManager, this.artifactManager);
         // Cross-module linkage
         this.bundleManager.fileSystemManager = this.fileSystemManager;
         this.bundleManager.webSocketManager = this.webSocketManager;
@@ -223,6 +223,7 @@ export class CntxServer {
         if (!this.mcpServer) {
             this.mcpServer = new MCPServer(this, this.version);
             this.mcpServerStarted = true;
+            this.apiRouter.setMcpEnabled(true);
         }
     }
     async listen(port = 3333, host = 'localhost') {
