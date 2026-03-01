@@ -1,357 +1,171 @@
-// web/src/App.tsx - Sidebar Navigation with shadcn/ui
+// web/src/App.tsx - Modular Layout using AppSidebar
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BundleList } from './components/BundleList'
 import { SystemStatus } from './components/SystemStatus'
 import { SemanticChunks } from './components/SemanticChunks'
-import { Button } from './components/ui/button'
-import {
-  Boxes,
-  CheckCircle,
-  HelpCircle,
-  Settings,
-  X,
-  PanelLeft,
-  SquaresUnite,
-  DatabaseZap,
-  Database
-} from 'lucide-react'
+import { Search } from 'lucide-react'
 import { ThemeToggle } from './components/theme-toggle'
 import { VectorVisualization } from './components/VectorVisualization'
 import { SystemSettings } from './components/SystemSettings'
 import { Documentation } from './components/Documentation'
 import { DatabaseViewer } from './components/DatabaseViewer'
 
+// Modular Components
+import { AppSidebar } from "./components/app-sidebar"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "./components/ui/sidebar"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/ui/breadcrumb"
+import { Separator } from "./components/ui/separator"
+
 const queryClient = new QueryClient()
 
-const navigationItems = [
-  {
-    id: 'bundles',
-    label: 'Bundles & Files',
-    icon: Boxes
-  },
-  {
-    id: 'semantic',
-    label: 'Semantic Chunks',
-    icon: SquaresUnite
-  },
-  {
-    id: 'vector-db',
-    label: 'Vector Database',
-    icon: DatabaseZap
-  },
-  {
-    id: 'database',
-    label: 'SQLite Database',
-    icon: Database
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    icon: Settings
-  },
-  {
-    id: 'system-status',
-    label: 'System Status',
-    icon: CheckCircle
-  },
-  {
-    id: 'help',
-    label: 'Help & Documentation',
-    icon: HelpCircle
-  }
-]
-
-// User preferences with localStorage persistence
-const PREFERENCES_KEY = 'cntx-ui-preferences'
-
-interface UserPreferences {
-  sidebarCollapsed: boolean
-  activeSection: string
-  // Future preferences can be added here
-}
-
-const getStoredPreferences = (): UserPreferences => {
-  try {
-    const stored = localStorage.getItem(PREFERENCES_KEY)
-    if (stored) {
-      return { ...defaultPreferences, ...JSON.parse(stored) }
-    }
-  } catch (error) {
-    console.warn('Failed to load preferences from localStorage:', error)
-  }
-  return defaultPreferences
-}
-
-const savePreferences = (preferences: UserPreferences) => {
-  try {
-    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences))
-  } catch (error) {
-    console.warn('Failed to save preferences to localStorage:', error)
-  }
-}
-
-const defaultPreferences: UserPreferences = {
-  sidebarCollapsed: false,
-  activeSection: 'bundles'
-}
-
 function App() {
-  const [webStatus, setWebStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
   const [mcpStatus, setMcpStatus] = useState<'unknown' | 'running' | 'stopped'>('unknown')
-
-  // Initialize preferences from localStorage
-  const [preferences, setPreferences] = useState<UserPreferences>(getStoredPreferences)
-  const { sidebarCollapsed, activeSection } = preferences
-
-  // Helper to update preferences and persist to localStorage
-  const updatePreferences = (updates: Partial<UserPreferences>) => {
-    const newPreferences = { ...preferences, ...updates }
-    setPreferences(newPreferences)
-    savePreferences(newPreferences)
-  }
-
-  const setSidebarCollapsed = (collapsed: boolean) => {
-    updatePreferences({ sidebarCollapsed: collapsed })
-  }
-
-  const setActiveSection = (section: string) => {
-    updatePreferences({ activeSection: section })
-  }
+  const [projectName, setProjectName] = useState<string>('cntx-ui')
+  const [version, setVersion] = useState<string>('v3.1.18')
+  const [activeSection, setActiveSection] = useState<string>('bundles')
 
   useEffect(() => {
-    // Web server status via WebSocket
-    const ws = new WebSocket('ws://localhost:3333')
-    ws.onopen = () => setWebStatus('connected')
-    ws.onclose = () => setWebStatus('disconnected')
-
-    // Check MCP server status
-    const checkMcpStatus = async () => {
+    const checkStatus = async () => {
       try {
-        const response = await fetch('/api/mcp-status')
+        const response = await fetch('/api/status')
         if (response.ok) {
-          const { running } = await response.json()
-          setMcpStatus(running ? 'running' : 'stopped')
-        } else {
-          setMcpStatus('stopped')
+          const data = await response.json()
+          if (data.projectPath) {
+            const parts = data.projectPath.split('/')
+            setProjectName(parts[parts.length - 1])
+          }
+          if (data.mcp) {
+            setMcpStatus(data.mcp.available ? 'running' : 'stopped')
+          }
         }
-      } catch {
-        setMcpStatus('stopped')
+      } catch (e) {
+        console.error('Failed to fetch status:', e)
       }
     }
 
-    checkMcpStatus()
-    const mcpInterval = setInterval(checkMcpStatus, 10000) // Check every 10s
-
-    return () => {
-      ws.close()
-      clearInterval(mcpInterval)
-    }
+    checkStatus()
+    const statusInterval = setInterval(checkStatus, 10000)
+    return () => clearInterval(statusInterval)
   }, [])
-
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'bundles':
-        return (
-          <div className="flex-1 min-h-0 flex">
-            <main className="flex-1 min-h-0 flex flex-col">
-              <BundleList />
-            </main>
-          </div>
-        )
-      case 'semantic':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-lg font-thin tracking-tight">Semantic Chunks</h1>
-              <p className="text-xs text-muted-foreground font-thin">AI-powered code organization and intelligent bundles</p>
-            </div>
-            <SemanticChunks />
-          </div>
-        )
-      case 'vector-db':
-        return (
-          <div className="space-y-6">
-            <VectorVisualization />
-          </div>
-        )
-      case 'database':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-lg font-thin tracking-tight">SQLite Database</h1>
-              <p className="text-xs text-muted-foreground font-thin">Query and inspect the bundle database</p>
-            </div>
-            <DatabaseViewer />
-          </div>
-        )
-      case 'settings':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-lg font-thin tracking-tight">Settings</h1>
-              <p className="text-xs text-muted-foreground font-thin">Configure file visibility and bundle patterns</p>
-            </div>
-            <SystemSettings />
-          </div>
-        )
-      case 'system-status':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-lg font-thin tracking-tight">System Status</h1>
-              <p className="text-xs text-muted-foreground font-thin">Overall health and configuration of cntx-ui</p>
-            </div>
-            <SystemStatus />
-          </div>
-        )
-      case 'help':
-        return (
-          <Documentation />
-        )
-      default:
-        return null
+      case 'bundles': return <BundleList />
+      case 'semantic': return (
+        <div className="space-y-6">
+          <header>
+            <h1 className="text-lg  tracking-tight">Semantic Chunks</h1>
+            <p className="text-xs text-muted-foreground ">AI-powered code organization and intelligent bundles</p>
+          </header>
+          <SemanticChunks />
+        </div>
+      )
+      case 'vector-db': return <VectorVisualization />
+      case 'database': return (
+        <div className="space-y-6">
+          <header>
+            <h1 className="text-lg  tracking-tight">SQLite Database</h1>
+            <p className="text-xs text-muted-foreground ">Query and inspect the bundle database</p>
+          </header>
+          <DatabaseViewer />
+        </div>
+      )
+      case 'settings': return (
+        <div className="space-y-6">
+          <header>
+            <h1 className="text-lg  tracking-tight">Settings</h1>
+            <p className="text-xs text-muted-foreground ">Configure file visibility and bundle patterns</p>
+          </header>
+          <SystemSettings />
+        </div>
+      )
+      case 'system-status': return (
+        <div className="space-y-6">
+          <header>
+            <h1 className="text-lg  tracking-tight">System Status</h1>
+            <p className="text-xs text-muted-foreground ">Overall health and configuration of cntx-ui</p>
+          </header>
+          <SystemStatus />
+        </div>
+      )
+      case 'help': return <Documentation />
+      default: return null
     }
   }
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="h-screen bg-background overflow-hidden flex flex-col">
-        {/* Header - Full width when sidebar collapsed */}
-        {sidebarCollapsed && (
-          <div className="h-16 border-b flex items-center px-4 flex-shrink-0">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="flex items-center gap-2">
-                {/* <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-                  <Boxes className="w-3 h-3 text-primary-foreground" />
-                </div> */}
-                <div>
-                  <h2 className="text-sm font-thin">cntx-ui</h2>
-                  <p className="text-xs text-muted-foreground font-thin">Context Manager</p>
-                </div>
-              </div>
+      <SidebarProvider>
+        <AppSidebar 
+          projectName={projectName}
+          version={version}
+          mcpStatus={mcpStatus}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+        />
+        <SidebarInset>
+          <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem className="hidden md:block">
+                    <BreadcrumbLink href="#" onClick={(e) => { e.preventDefault(); setActiveSection('bundles'); }}>
+                      {projectName}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="hidden md:block" />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="capitalize">{activeSection.replace('-', ' ')}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-xs text-muted-foreground">
-                cntx-ui v2.0.12
+            <div className="ml-auto flex items-center gap-4">
+              <div className="hidden md:flex items-center relative max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <input 
+                  type="search" 
+                  placeholder="Quick search..." 
+                  className="pl-8 h-9 w-64 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
               </div>
               <ThemeToggle />
             </div>
-          </div>
-        )}
-
-        <div className="flex flex-1" style={{ height: sidebarCollapsed ? 'calc(100vh - 4rem)' : '100%' }}>
-          {/* Sidebar */}
-          <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} border-r flex flex-col h-full transition-all duration-200`}>
-            {/* Header - Only visible when sidebar expanded */}
-            {!sidebarCollapsed && (
-              <div className="p-4 border-b flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  {/* <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-                    <Boxes className="w-3 h-3 text-primary-foreground" />
-                  </div> */}
-                  <div className="flex-1">
-                    <h2 className="text-sm font-thin">cntx-ui</h2>
-                    <p className="text-xs text-muted-foreground font-thin">Context Manager</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSidebarCollapsed(true)}
-                    className="h-6 w-6 p-0 opacity-60 hover:opacity-100"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Collapsed header with just toggle */}
-            {sidebarCollapsed && (
-              <div className="p-3 border-b flex-shrink-0 flex justify-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSidebarCollapsed(false)}
-                  className="h-8 w-8 p-0"
-                >
-                  <PanelLeft className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-
-            {/* Navigation */}
-            <nav className={`${sidebarCollapsed ? 'p-2' : 'p-4'} space-y-1 flex-1 overflow-y-auto`}>
-              {navigationItems.map((item) => {
-                const Icon = item.icon
-                const isActive = activeSection === item.id
-
-                return (
-                  <Button
-                    key={item.id}
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={`${sidebarCollapsed
-                      ? 'w-12 h-12 p-0 justify-center'
-                      : 'w-full justify-start h-8 text-xs font-thin'
-                      } transition-all`}
-                    onClick={() => setActiveSection(item.id)}
-                    title={sidebarCollapsed ? item.label : undefined}
-                  >
-                    <Icon className={`${sidebarCollapsed ? 'w-4 h-4' : 'w-3 h-3 mr-2'}`} />
-                    {!sidebarCollapsed && item.label}
-                  </Button>
-                )
-              })}
-            </nav>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1 overflow-y-auto pb-12">
-            <main className="p-6 max-w-6xl">
+          </header>
+          <div className="flex flex-1 flex-col gap-4 p-4 pt-6 overflow-y-auto">
+            <div className="mx-auto w-full max-w-6xl">
               {renderContent()}
-            </main>
-          </div>
-        </div>
-
-        {/* Fixed Status Bar - Always visible, positioned correctly */}
-        <div className={`fixed left-0 right-0 h-10 bg-card border-t border-border px-4 flex items-center justify-between z-40 ${sidebarCollapsed ? 'bottom-0' : 'bottom-0'
-          }`}>
-          <div className="flex items-center gap-6">
-            {/* Web Server Status */}
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${webStatus === 'connected' ? 'bg-[color:var(--color-success)]' :
-                webStatus === 'connecting' ? 'bg-[color:var(--color-warning)]' : 'bg-destructive'
-                }`} />
-              <span className="text-xs font-thin">
-                UI: {webStatus === 'connected' ? 'Live' :
-                  webStatus === 'connecting' ? 'Connecting' : 'Offline'}
-              </span>
-            </div>
-
-            {/* MCP Server Status */}
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${mcpStatus === 'running' ? 'bg-[color:var(--color-success)]' :
-                mcpStatus === 'stopped' ? 'bg-destructive' : 'bg-muted-foreground'
-                }`} />
-              <span className="text-xs font-thin">
-                MCP SERVER: {mcpStatus === 'running' ? 'Running' :
-                  mcpStatus === 'stopped' ? 'Stopped' : 'Unknown'}
-              </span>
             </div>
           </div>
-
-          {!sidebarCollapsed && (
-            <div className="flex items-center gap-4">
-              <div className="text-xs text-muted-foreground">
-                cntx-ui v2.0.12
-              </div>
-              <ThemeToggle />
+          <footer className="flex h-10 shrink-0 items-center gap-4 border-t px-4 bg-muted/20">
+            <div className="flex items-center gap-2">
+              <div className={`size-2 rounded-full ${mcpStatus === 'running' ? 'bg-[color:var(--color-success)]' : 'bg-destructive'}`} />
+              <span className="text-[10px]  uppercase tracking-widest text-muted-foreground">
+                MCP: {mcpStatus}
+              </span>
             </div>
-          )}
-        </div>
-
-      </div>
+            <div className="ml-auto flex items-center gap-4">
+              <span className="text-[10px]  uppercase tracking-widest text-muted-foreground">
+                cntx-ui {version}
+              </span>
+            </div>
+          </footer>
+        </SidebarInset>
+      </SidebarProvider>
     </QueryClientProvider>
   )
 }
