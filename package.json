@@ -1,7 +1,7 @@
 {
   "name": "cntx-ui",
   "type": "module",
-  "version": "3.1.9",
+  "version": "3.1.10",
   "description": "Autonomous Repository Intelligence engine with web UI and MCP server. Unified semantic code understanding, local RAG, and agent working memory.",
   "keywords": [
     "repository-intelligence",
